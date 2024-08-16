@@ -1,0 +1,49 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'homepage.dart';
+import 'sign.dart';
+import 'theme.dart';
+
+class SplashScreen extends StatefulWidget {
+  @override
+  _SplashScreenState createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkSignInStatus();
+  }
+
+  _checkSignInStatus() async {
+    await Future.delayed(Duration(milliseconds: 3000)); // Delay for 3 seconds
+
+    User? user = FirebaseAuth.instance.currentUser;
+    if (mounted) {
+      // Check if the widget is still in the widget tree
+      if (user != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => HomePage()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => SignInPage()),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.primary,
+      body: Center(
+        child: Image.asset(
+            'assets/logo.png'), // Ensure you have a logo.png in the assets folder
+      ),
+    );
+  }
+}
