@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "74030690702",
+    "project_id": "mac-tracker-ae2e1",
+    "storage_bucket": "mac-tracker-ae2e1.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:74030690702:android:90466f5dc8ed9d7877b4df",
+        "android_client_info": {
+          "package_name": "com.example.mac_track"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "74030690702-uqvq9jueq2mj8u1qp5347o7t5b2okcoh.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.mac_track",
+            "certificate_hash": "cdb33a7cd8062cd09ef14d3f37acd83eab62d037"
+          }
+        },
+        {
+          "client_id": "74030690702-moa7nlu1rsil6qv4ajjauespfp4n9a37.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBkgyxDvhEPljxmVRKuFnxK_HIKhtdHuFU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "74030690702-moa7nlu1rsil6qv4ajjauespfp4n9a37.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
