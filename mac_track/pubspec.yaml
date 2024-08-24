@@ -45,6 +45,9 @@ dependencies:
   # Others
   provider: ^6.1.2
   shared_preferences: ^2.3.1
+  toggle_switch: ^2.3.0
+  font_awesome_flutter: ^10.7.0
+  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:

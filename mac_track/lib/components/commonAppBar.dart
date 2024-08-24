@@ -13,7 +13,10 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
     final theme = Theme.of(context);
 
     return AppBar(
-      title: Text(title),
+      title: Center(
+        child: Text(title, style: theme.textTheme.displayMedium),
+      ),
+      iconTheme: theme.iconTheme,
       actions: [
         IconButton(
           icon: Icon(

@@ -27,7 +27,6 @@ class MyApp extends StatelessWidget {
     return Consumer<ThemeManager>(
       builder: (context, themeManager, child) {
         if (!themeManager.isInitialized) {
-          // Wait for ThemeManager to initialize before loading the app
           return const Center(
             child: CircularProgressIndicator(),
           );

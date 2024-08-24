@@ -2,14 +2,14 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:mac_track/theme.dart';
 
-class LineChartSample2 extends StatefulWidget {
-  const LineChartSample2({super.key});
+class ExpenseGraph extends StatefulWidget {
+  const ExpenseGraph({super.key});
 
   @override
-  State<LineChartSample2> createState() => _LineChartSample2State();
+  State<ExpenseGraph> createState() => _ExpenseGraphState();
 }
 
-class _LineChartSample2State extends State<LineChartSample2> {
+class _ExpenseGraphState extends State<ExpenseGraph> {
   List<Color> gradientColors = [
     AppColors.primaryGreen,
     AppColors.secondaryGreen
@@ -25,8 +25,6 @@ class _LineChartSample2State extends State<LineChartSample2> {
           aspectRatio: 1.70,
           child: Padding(
             padding: const EdgeInsets.only(
-              right: 18,
-              left: 12,
               top: 24,
               bottom: 12,
             ),
@@ -35,46 +33,26 @@ class _LineChartSample2State extends State<LineChartSample2> {
             ),
           ),
         ),
-        SizedBox(
-          width: 60,
-          height: 34,
-          child: TextButton(
-            onPressed: () {
-              setState(() {
-                showAvg = !showAvg;
-              });
-            },
-            child: Text(
-              'avg',
-              style: TextStyle(
-                fontSize: 12,
-                color: showAvg ? Colors.white.withOpacity(0.5) : Colors.white,
-              ),
-            ),
-          ),
-        ),
       ],
     );
   }
 
   Widget bottomTitleWidgets(double value, TitleMeta meta) {
-    const style = TextStyle(
-      fontWeight: FontWeight.bold,
-      fontSize: 16,
-    );
+    final theme = Theme.of(context);
+
     Widget text;
     switch (value.toInt()) {
       case 2:
-        text = const Text('MAR', style: style);
+        text = Text('MAR', style: theme.textTheme.labelSmall);
         break;
       case 5:
-        text = const Text('JUN', style: style);
+        text = Text('JUN', style: theme.textTheme.labelSmall);
         break;
       case 8:
-        text = const Text('SEP', style: style);
+        text = Text('SEP', style: theme.textTheme.labelSmall);
         break;
       default:
-        text = const Text('', style: style);
+        text = Text('', style: theme.textTheme.labelSmall);
         break;
     }
 
@@ -85,10 +63,8 @@ class _LineChartSample2State extends State<LineChartSample2> {
   }
 
   Widget leftTitleWidgets(double value, TitleMeta meta) {
-    const style = TextStyle(
-      fontWeight: FontWeight.bold,
-      fontSize: 15,
-    );
+    final theme = Theme.of(context);
+
     String text;
     switch (value.toInt()) {
       case 1:
@@ -104,7 +80,8 @@ class _LineChartSample2State extends State<LineChartSample2> {
         return Container();
     }
 
-    return Text(text, style: style, textAlign: TextAlign.left);
+    return Text(text,
+        style: theme.textTheme.labelSmall, textAlign: TextAlign.left);
   }
 
   LineChartData mainData() {

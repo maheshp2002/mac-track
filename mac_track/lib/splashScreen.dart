@@ -2,7 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'homepage.dart';
 import 'sign.dart';
-import 'theme.dart';
 
 class SplashScreen extends StatefulWidget {
   @override
@@ -17,7 +16,8 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   _checkSignInStatus() async {
-    await Future.delayed(Duration(milliseconds: 3000)); // Delay for 3 seconds
+    await Future.delayed(
+        const Duration(milliseconds: 3000)); // Delay for 3 seconds
 
     User? user = FirebaseAuth.instance.currentUser;
     if (mounted) {
@@ -39,10 +39,9 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primary,
       body: Center(
         child: Image.asset(
-            'assets/logo.png'), // Ensure you have a logo.png in the assets folder
+            'assets/logo/logo-icon.png'), // Ensure you have a logo.png in the assets folder
       ),
     );
   }

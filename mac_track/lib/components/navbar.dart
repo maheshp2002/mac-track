@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:mac_track/homepage.dart';
+import 'package:mac_track/insight.dart';
 import '../sign.dart';
 
 class NavBar extends StatelessWidget {
@@ -34,7 +37,25 @@ class NavBar extends StatelessWidget {
             ),
           ),
           ListTile(
-            leading: Icon(Icons.exit_to_app, color: theme.iconTheme.color),
+            leading: Icon(FontAwesomeIcons.house, color: theme.iconTheme.color),
+            title: Text('Home', style: theme.textTheme.bodyLarge),
+            onTap: () => Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => HomePage()),
+            ),
+          ),
+          ListTile(
+            leading:
+                Icon(FontAwesomeIcons.chartLine, color: theme.iconTheme.color),
+            title: Text('Insight', style: theme.textTheme.bodyLarge),
+            onTap: () => Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => Insight()),
+            ),
+          ),
+          ListTile(
+            leading: Icon(FontAwesomeIcons.rightFromBracket,
+                color: theme.iconTheme.color),
             title: Text('Sign Out', style: theme.textTheme.bodyLarge),
             onTap: () => _signOut(context),
           ),
