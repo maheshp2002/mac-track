@@ -3,6 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:toggle_switch/toggle_switch.dart';
 import 'components/commonAppBar.dart';
+import 'components/fullScreenModal.dart';
 import 'components/navbar.dart';
 import 'components/slideInAnimation.dart';
 import 'components/themeManager.dart';
@@ -28,6 +29,19 @@ class _HomePageState extends State<HomePage> {
       extendBodyBehindAppBar: true,
       appBar: CommonAppBar(
         title: 'MacTrack',
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          openFullScreenModal(context);
+        },
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.0),
+        ),
+        backgroundColor: AppColors.secondaryGreen,
+        child: const Icon(
+          FontAwesomeIcons.plus,
+          color: AppColors.backgroundLight,
+        ),
       ),
       drawer: NavBar(),
       body: Container(

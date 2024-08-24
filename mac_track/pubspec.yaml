@@ -40,14 +40,21 @@ dependencies:
   firebase_core: ^3.0.0
   firebase_auth: ^5.1.0
   google_sign_in: ^6.2.0
+
+  # Storage
+  cloud_firestore: ^5.2.1
+  shared_preferences: ^2.3.1
+
+  # Styles
+  google_fonts: ^6.2.1
+  font_awesome_flutter: ^10.7.0
+
+  # Components
+  toggle_switch: ^2.3.0
   fl_chart: ^0.68.0
 
   # Others
   provider: ^6.1.2
-  shared_preferences: ^2.3.1
-  toggle_switch: ^2.3.0
-  font_awesome_flutter: ^10.7.0
-  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:

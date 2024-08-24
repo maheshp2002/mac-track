@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const Color primary = Color(0xFF6200EE);
   static const Color secondary = Color(0xFF03DAC6);
   static const Color backgroundLight = Color(0xFFFFFFFF);
   static const Color backgroundDark = Color(0xFF121212);
@@ -46,13 +45,15 @@ class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
   final Color toggleButtonSelectedColor;
   final Color toggleButtonTextColor;
   final Color toggleButtonBackgroundColor;
+  final Color modalBackgroundColor;
 
   AppThemeExtension(
       {required this.toggleButtonBorderColor,
       required this.toggleButtonFillColor,
       required this.toggleButtonSelectedColor,
       required this.toggleButtonTextColor,
-      required this.toggleButtonBackgroundColor});
+      required this.toggleButtonBackgroundColor,
+      required this.modalBackgroundColor});
 
   @override
   AppThemeExtension copyWith(
@@ -60,7 +61,8 @@ class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
       Color? toggleButtonFillColor,
       Color? toggleButtonSelectedColor,
       Color? toggleButtonTextColor,
-      Color? toggleButtonBackgroundColor}) {
+      Color? toggleButtonBackgroundColor,
+      Color? modalBackgroundColor}) {
     return AppThemeExtension(
       toggleButtonBorderColor:
           toggleButtonBorderColor ?? this.toggleButtonBorderColor,
@@ -72,6 +74,7 @@ class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
           toggleButtonTextColor ?? this.toggleButtonTextColor,
       toggleButtonBackgroundColor:
           toggleButtonBackgroundColor ?? this.toggleButtonBackgroundColor,
+      modalBackgroundColor: modalBackgroundColor ?? this.modalBackgroundColor,
     );
   }
 
@@ -81,17 +84,18 @@ class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
       return this;
     }
     return AppThemeExtension(
-      toggleButtonBorderColor: Color.lerp(
-          toggleButtonBorderColor, other.toggleButtonBorderColor, t)!,
-      toggleButtonFillColor:
-          Color.lerp(toggleButtonFillColor, other.toggleButtonFillColor, t)!,
-      toggleButtonSelectedColor: Color.lerp(
-          toggleButtonSelectedColor, other.toggleButtonSelectedColor, t)!,
-      toggleButtonTextColor:
-          Color.lerp(toggleButtonTextColor, other.toggleButtonTextColor, t)!,
-      toggleButtonBackgroundColor: Color.lerp(
-          toggleButtonBackgroundColor, other.toggleButtonBackgroundColor, t)!,
-    );
+        toggleButtonBorderColor: Color.lerp(
+            toggleButtonBorderColor, other.toggleButtonBorderColor, t)!,
+        toggleButtonFillColor:
+            Color.lerp(toggleButtonFillColor, other.toggleButtonFillColor, t)!,
+        toggleButtonSelectedColor: Color.lerp(
+            toggleButtonSelectedColor, other.toggleButtonSelectedColor, t)!,
+        toggleButtonTextColor:
+            Color.lerp(toggleButtonTextColor, other.toggleButtonTextColor, t)!,
+        toggleButtonBackgroundColor: Color.lerp(
+            toggleButtonBackgroundColor, other.toggleButtonBackgroundColor, t)!,
+        modalBackgroundColor:
+            Color.lerp(modalBackgroundColor, other.modalBackgroundColor, t)!);
   }
 }
 
@@ -103,7 +107,8 @@ class AppTheme {
           toggleButtonFillColor: AppColors.secondaryGreen,
           toggleButtonSelectedColor: Colors.white,
           toggleButtonTextColor: AppColors.primaryGreen,
-          toggleButtonBackgroundColor: Colors.transparent),
+          toggleButtonBackgroundColor: Colors.transparent,
+          modalBackgroundColor: Colors.white70),
     ],
     iconTheme: const IconThemeData(color: Colors.black87),
     primaryColor: AppColors.backgroundLight,
@@ -130,7 +135,8 @@ class AppTheme {
           toggleButtonFillColor: Colors.grey[800]!,
           toggleButtonSelectedColor: Colors.white,
           toggleButtonTextColor: Colors.white,
-          toggleButtonBackgroundColor: Colors.black54),
+          toggleButtonBackgroundColor: Colors.black54,
+          modalBackgroundColor: Colors.black12),
     ],
     iconTheme: const IconThemeData(color: Colors.white),
     primaryColor: AppColors.backgroundDark,
