@@ -15,4 +15,22 @@ class FirebaseService {
       return {for (var doc in snapshot.docs) doc.id: doc.data()};
     });
   }
+
+  Future<void> addExpense(String userEmail, String documentId, Map<String, dynamic> expenseData) async {
+    // Reference to the user's expense collection
+    CollectionReference expenseCollection = _firestore
+        .collection('users')
+        .doc(userEmail)
+        .collection('expense');
+
+    // Check if the collection is empty
+    QuerySnapshot snapshot = await expenseCollection.get();
+    if (snapshot.docs.isEmpty) {
+      // If no documents exist, create a dummy document to initialize the collection
+      await expenseCollection.doc('init').set({'initialized': true});
+    }
+
+    // Now add the actual expense document
+    await expenseCollection.doc(documentId).set(expenseData);
+  }
 }

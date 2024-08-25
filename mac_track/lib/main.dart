@@ -2,7 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'components/themeManager.dart';
-import 'defaultFirebaseOption.dart';
+import 'services/defaultFirebaseOption.dart';
 import 'splashScreen.dart';
 import 'theme.dart';
 

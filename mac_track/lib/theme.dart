@@ -46,6 +46,7 @@ class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
   final Color toggleButtonTextColor;
   final Color toggleButtonBackgroundColor;
   final Color modalBackgroundColor;
+  final Color chipBackgroundColor;
 
   AppThemeExtension(
       {required this.toggleButtonBorderColor,
@@ -53,7 +54,8 @@ class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
       required this.toggleButtonSelectedColor,
       required this.toggleButtonTextColor,
       required this.toggleButtonBackgroundColor,
-      required this.modalBackgroundColor});
+      required this.modalBackgroundColor,
+      required this.chipBackgroundColor});
 
   @override
   AppThemeExtension copyWith(
@@ -62,7 +64,8 @@ class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
       Color? toggleButtonSelectedColor,
       Color? toggleButtonTextColor,
       Color? toggleButtonBackgroundColor,
-      Color? modalBackgroundColor}) {
+      Color? modalBackgroundColor,
+      Color? chipBackgroundColor}) {
     return AppThemeExtension(
       toggleButtonBorderColor:
           toggleButtonBorderColor ?? this.toggleButtonBorderColor,
@@ -75,6 +78,8 @@ class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
       toggleButtonBackgroundColor:
           toggleButtonBackgroundColor ?? this.toggleButtonBackgroundColor,
       modalBackgroundColor: modalBackgroundColor ?? this.modalBackgroundColor,
+      chipBackgroundColor:
+          chipBackgroundColor ?? this.chipBackgroundColor,
     );
   }
 
@@ -95,7 +100,9 @@ class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
         toggleButtonBackgroundColor: Color.lerp(
             toggleButtonBackgroundColor, other.toggleButtonBackgroundColor, t)!,
         modalBackgroundColor:
-            Color.lerp(modalBackgroundColor, other.modalBackgroundColor, t)!);
+            Color.lerp(modalBackgroundColor, other.modalBackgroundColor, t)!,
+        chipBackgroundColor:
+            Color.lerp(chipBackgroundColor, other.chipBackgroundColor, t)!,);
   }
 }
 
@@ -108,15 +115,17 @@ class AppTheme {
           toggleButtonSelectedColor: Colors.white,
           toggleButtonTextColor: AppColors.primaryGreen,
           toggleButtonBackgroundColor: Colors.transparent,
-          modalBackgroundColor: Colors.white70),
+          modalBackgroundColor: Colors.white70,
+          chipBackgroundColor: Colors.white60),
     ],
     iconTheme: const IconThemeData(color: Colors.black87),
     primaryColor: AppColors.backgroundLight,
     scaffoldBackgroundColor: AppColors.backgroundLight,
+    buttonTheme: const ButtonThemeData(buttonColor:  AppColors.primaryGreen),
     textTheme: TextTheme(
       displayLarge: AppTextStyles.headline.copyWith(color: Colors.black87),
       bodyLarge: AppTextStyles.bodyText.copyWith(color: Colors.black87),
-      displayMedium: AppTextStyles.appBarTitle.copyWith(color: Colors.black87),
+      displayMedium: AppTextStyles.appBarTitle.copyWith(color: Colors.black87, fontWeight: FontWeight.bold),
       labelSmall: AppTextStyles.appBarTitle
           .copyWith(color: Colors.black87, fontSize: 15),
     ),
@@ -136,15 +145,17 @@ class AppTheme {
           toggleButtonSelectedColor: Colors.white,
           toggleButtonTextColor: Colors.white,
           toggleButtonBackgroundColor: Colors.black54,
-          modalBackgroundColor: Colors.black12),
+          modalBackgroundColor: Colors.black12,
+          chipBackgroundColor: Colors.black87),
     ],
     iconTheme: const IconThemeData(color: Colors.white),
+    buttonTheme: const ButtonThemeData(buttonColor:  AppColors.primaryGreen),
     primaryColor: AppColors.backgroundDark,
     scaffoldBackgroundColor: AppColors.backgroundDark,
     textTheme: TextTheme(
       displayLarge: AppTextStyles.headline.copyWith(color: Colors.white),
       bodyLarge: AppTextStyles.bodyText.copyWith(color: Colors.white),
-      displayMedium: AppTextStyles.appBarTitle.copyWith(color: Colors.white),
+      displayMedium: AppTextStyles.appBarTitle.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
       labelSmall:
           AppTextStyles.appBarTitle.copyWith(color: Colors.white, fontSize: 15),
     ),
