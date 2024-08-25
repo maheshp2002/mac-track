@@ -11,19 +11,33 @@ class FullScreenModal extends StatefulWidget {
 
 class _FullScreenModalState extends State<FullScreenModal> {
   late Stream<Map<String, dynamic>> _bankDataStream;
-  late FocusNode _focusNode;
+  late FocusNode _amountFocusNode;
+  late FocusNode _expenseFocusNode;
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _amountController = TextEditingController();
+  final TextEditingController _expenseController = TextEditingController();
   int? _selectedChipIndex;
   bool _isAmountValid = true;
+  bool _isExpenseTypeValid = true;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+
+  // Dropdown related variables
+  String _selectedTransactionType = 'Withdraw';
+  final List<String> _transactionTypes = ['Deposit', 'Withdraw', 'Transfer'];
 
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode()
+    _amountFocusNode = FocusNode()
       ..addListener(() {
-        if (!_focusNode.hasFocus) {
+        if (!_amountFocusNode.hasFocus) {
+          // Trigger validation when the focus is lost
+          _formKey.currentState?.validate();
+        }
+      });
+    _expenseFocusNode = FocusNode()
+      ..addListener(() {
+        if (!_expenseFocusNode.hasFocus) {
           // Trigger validation when the focus is lost
           _formKey.currentState?.validate();
         }
@@ -34,13 +48,14 @@ class _FullScreenModalState extends State<FullScreenModal> {
   Future<void> _submit() async {
     if (_formKey.currentState!.validate() && _selectedChipIndex != null) {
       final amount = _amountController.text;
+      final expenseType = _expenseController.text;
       final selectedBank = _selectedChipIndex;
 
       // Get the signed-in user's email
       GoogleSignInAccount? user = await _googleSignIn.signInSilently();
       if (user == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('User not signed in.')),
+          const SnackBar(content: Text('User not signed in.')),
         );
         return;
       }
@@ -54,6 +69,8 @@ class _FullScreenModalState extends State<FullScreenModal> {
       Map<String, dynamic> expenseData = {
         'amount': amount,
         'bankIndex': selectedBank,
+        'expense': expenseType,
+        'transactionType': _selectedTransactionType,
         'timestamp': now,
       };
 
@@ -148,7 +165,7 @@ class _FullScreenModalState extends State<FullScreenModal> {
                                 keyboardType:
                                     const TextInputType.numberWithOptions(
                                         decimal: true),
-                                focusNode: _focusNode,
+                                focusNode: _amountFocusNode,
                                 decoration: InputDecoration(
                                   labelText: 'Amount',
                                   labelStyle: TextStyle(
@@ -156,7 +173,7 @@ class _FullScreenModalState extends State<FullScreenModal> {
                                   suffixIcon: Icon(
                                     FontAwesomeIcons.indianRupeeSign,
                                     color: _isAmountValid
-                                        ? _focusNode.hasFocus
+                                        ? _amountFocusNode.hasFocus
                                             ? AppColors
                                                 .secondary // Color when focused
                                             : theme.iconTheme
@@ -194,6 +211,75 @@ class _FullScreenModalState extends State<FullScreenModal> {
                                   });
                                   return null;
                                 },
+                              ),
+                              const SizedBox(height: 20),
+                              TextFormField(
+                                controller: _expenseController,
+                                focusNode: _expenseFocusNode,
+                                decoration: InputDecoration(
+                                  labelText: 'Expense Type',
+                                  labelStyle: TextStyle(
+                                      color: theme.textTheme.bodyLarge?.color),
+                                  suffixIcon: Icon(
+                                    FontAwesomeIcons.indianRupeeSign,
+                                    color: _isExpenseTypeValid
+                                        ? _expenseFocusNode.hasFocus
+                                            ? AppColors
+                                                .secondary // Color when focused
+                                            : theme.iconTheme
+                                                .color // Color when not focused
+                                        : Colors
+                                            .red, // Color when validation fails
+                                  ),
+                                  border: const OutlineInputBorder(),
+                                  focusedBorder: const OutlineInputBorder(
+                                    borderSide:
+                                        BorderSide(color: AppColors.secondary),
+                                  ),
+                                ),
+                                cursorColor: AppColors.secondary,
+                                onChanged: (value) {
+                                  // Validate on change
+                                  _formKey.currentState?.validate();
+                                },
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    setState(() {
+                                      _isExpenseTypeValid = false;
+                                    });
+                                    return 'Please enter an expense type';
+                                  }
+                                  setState(() {
+                                    _isExpenseTypeValid = true;
+                                  });
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 20),
+                              DropdownButtonFormField<String>(
+                                icon: Icon(
+                                  FontAwesomeIcons.moneyBillTransfer,
+                                  color: theme.iconTheme.color,
+                                ),
+                                value: _selectedTransactionType,
+                                items: _transactionTypes.map((String type) {
+                                  return DropdownMenuItem<String>(
+                                    value: type,
+                                    child: Text(
+                                      type,
+                                      style: theme.textTheme.bodyLarge,
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (newValue) {
+                                  setState(() {
+                                    _selectedTransactionType = newValue!;
+                                  });
+                                },
+                                decoration: const InputDecoration(
+                                  labelText: 'Transaction Type',
+                                  border: OutlineInputBorder(),
+                                ),
                               ),
                               const SizedBox(height: 30),
                               Text("Bank",
@@ -237,17 +323,12 @@ class _FullScreenModalState extends State<FullScreenModal> {
                               Center(
                                   child: ElevatedButton(
                                 style: ButtonStyle(
-                                  backgroundColor: WidgetStateProperty.all(
-                                      AppColors.secondaryGreen),
-                                  foregroundColor:
-                                      WidgetStateProperty.all(Colors.white),
-                                  shape: WidgetStateProperty.all(
-                                      RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(50.0),
-                                  )),
+                                  backgroundColor: MaterialStateProperty.all(
+                                      AppColors.secondary),
                                 ),
                                 onPressed: _submit,
-                                child: const Text('Submit'),
+                                child: Text("Save",
+                                    style: theme.textTheme.labelLarge),
                               )),
                             ],
                           );
@@ -262,6 +343,15 @@ class _FullScreenModalState extends State<FullScreenModal> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _expenseController.dispose();
+    _amountFocusNode.dispose();
+    _expenseFocusNode.dispose();
+    super.dispose();
   }
 }
 
