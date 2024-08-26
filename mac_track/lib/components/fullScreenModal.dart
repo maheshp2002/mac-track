@@ -257,6 +257,7 @@ class _FullScreenModalState extends State<FullScreenModal> {
                               ),
                               const SizedBox(height: 20),
                               DropdownButtonFormField<String>(
+                                dropdownColor: theme.scaffoldBackgroundColor,
                                 icon: Icon(
                                   FontAwesomeIcons.moneyBillTransfer,
                                   color: theme.iconTheme.color,

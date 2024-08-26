@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:toggle_switch/toggle_switch.dart';
@@ -173,10 +174,109 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
+              const SizedBox(
+                height: 10,
+              ),
+              SlideInAnimation(
+                  delay: const Duration(milliseconds: 100),
+                  startPosition: -0.5,
+                  endPosition: 0.0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      FilterContainer(
+                        icon: FeatherIcons.arrowDownLeft,
+                        text: "Deposit",
+                        color: AppColors.filterButtonBlack,
+                        onTap: () {
+                          // Handle the tap event here
+                          print('InkWell tapped!');
+                        },
+                      ),
+                      FilterContainer(
+                        icon: FeatherIcons.arrowUpRight,
+                        text: "Withdraw",
+                        color: Colors.purple,
+                        onTap: () {
+                          // Handle the tap event here
+                          print('InkWell tapped!');
+                        },
+                      ),
+                      FilterContainer(
+                        icon: FeatherIcons.arrowUp,
+                        text: "Transfer",
+                        color: AppColors.filterButtonGreen,
+                        onTap: () {
+                          // Handle the tap event here
+                          print('InkWell tapped!');
+                        },
+                      ),
+                    ],
+                  )),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+class FilterContainer extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color color;
+  final VoidCallback onTap;
+
+  const FilterContainer({
+    Key? key,
+    required this.icon,
+    required this.text,
+    required this.color,
+    required this.onTap,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+        onTap: onTap,
+        child: Container(
+          width: 105,
+          height: 105,
+          padding: const EdgeInsets.fromLTRB(15, 15, 10, 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30.0),
+            color: color,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                  height: 0.5 * 100,
+                  child: Align(
+                      alignment: Alignment.topLeft,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.backgroundLight,
+                            width: 2,
+                          ),
+                        ),
+                        child: Icon(
+                          icon,
+                          color: AppColors.backgroundLight,
+                          size: 20, // Adjust icon size as needed
+                        ),
+                      ))),
+              Text(
+                text,
+                style: const TextStyle(
+                  color: AppColors.backgroundLight,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        ));
   }
 }

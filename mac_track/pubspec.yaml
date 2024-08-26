@@ -48,6 +48,7 @@ dependencies:
   # Styles
   google_fonts: ^6.2.1
   font_awesome_flutter: ^10.7.0
+  flutter_feather_icons: ^2.0.0+1
 
   # Components
   toggle_switch: ^2.3.0

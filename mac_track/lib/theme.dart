@@ -9,6 +9,9 @@ class AppColors {
   static const Color gradientEnd = Color(0xFF333333);
   static const Color primaryGreen = Colors.greenAccent;
   static const Color secondaryGreen = Color(0xFF3BED97);
+  static const Color filterButtonBlack = Color(0xFF1e202e);
+  static const Color filterButtonWhite = Color(0xFFfbfbfb);
+  static const Color filterButtonGreen = Color(0xFF7efa8b);
 }
 
 class AppTextStyles {
