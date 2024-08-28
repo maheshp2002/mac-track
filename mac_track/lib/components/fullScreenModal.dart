@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../config/constants.dart';
 import '../services/firebaseService.dart';
 import '../theme.dart';
 
@@ -24,6 +25,13 @@ class _FullScreenModalState extends State<FullScreenModal> {
   // Dropdown related variables
   String _selectedTransactionType = 'Withdraw';
   final List<String> _transactionTypes = ['Deposit', 'Withdraw', 'Transfer'];
+  String _selectedExpenseCategory = 'Withdraw';
+  final List<String> _expenseCategory = [
+    'Spotify',
+    'Electricity',
+    'Water Bill',
+    AppConstants.expenseCategoryCustom
+  ];
 
   @override
   void initState() {
@@ -71,18 +79,21 @@ class _FullScreenModalState extends State<FullScreenModal> {
         'bankIndex': selectedBank,
         'expense': expenseType,
         'transactionType': _selectedTransactionType,
+        'expenseCategory': _selectedExpenseCategory,
         'timestamp': now,
+        'salary': ''
       };
 
       // Save the data to Firebase
-      await FirebaseService().addExpense(userEmail, documentId, expenseData);
+      await FirebaseService()
+          .addData(userEmail, documentId, expenseData, 'expense');
 
       // Optionally close the modal after submitting
       Navigator.of(context).pop();
     } else {
       if (_selectedChipIndex == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Please select a bank.')),
+          const SnackBar(content: Text('Please select a bank.')),
         );
       }
     }
@@ -213,7 +224,42 @@ class _FullScreenModalState extends State<FullScreenModal> {
                                 },
                               ),
                               const SizedBox(height: 20),
+                              DropdownButtonFormField<String>(
+                                dropdownColor: theme.scaffoldBackgroundColor,
+                                icon: Icon(
+                                  FontAwesomeIcons.moneyBillTransfer,
+                                  color: theme.iconTheme.color,
+                                ),
+                                value: _selectedExpenseCategory,
+                                items: _expenseCategory.map((String type) {
+                                  return DropdownMenuItem<String>(
+                                    value: type,
+                                    child: Text(
+                                      type,
+                                      style: theme.textTheme.bodyLarge,
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (newValue) {
+                                  setState(() {
+                                    _selectedExpenseCategory = newValue!;
+
+                                    if (_selectedExpenseCategory !=
+                                        AppConstants.expenseCategoryCustom) {
+                                      _expenseController.text =
+                                          _selectedExpenseCategory;
+                                    }
+                                  });
+                                },
+                                decoration: const InputDecoration(
+                                  labelText: 'Expense Category',
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                              const SizedBox(height: 30),
                               TextFormField(
+                                enabled: _selectedExpenseCategory !=
+                                    AppConstants.expenseCategoryCustom,
                                 controller: _expenseController,
                                 focusNode: _expenseFocusNode,
                                 decoration: InputDecoration(
@@ -243,7 +289,9 @@ class _FullScreenModalState extends State<FullScreenModal> {
                                   _formKey.currentState?.validate();
                                 },
                                 validator: (value) {
-                                  if (value == null || value.isEmpty) {
+                                  if (_selectedExpenseCategory !=
+                                          AppConstants.expenseCategoryCustom &&
+                                      (value == null || value.isEmpty)) {
                                     setState(() {
                                       _isExpenseTypeValid = false;
                                     });
@@ -282,7 +330,7 @@ class _FullScreenModalState extends State<FullScreenModal> {
                                   border: OutlineInputBorder(),
                                 ),
                               ),
-                              const SizedBox(height: 30),
+                              const SizedBox(height: 20),
                               Text("Bank",
                                   style: theme.textTheme.displayMedium),
                               const SizedBox(height: 10),
