@@ -2,7 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 import 'package:toggle_switch/toggle_switch.dart';
 import 'components/commonAppBar.dart';
@@ -14,14 +13,15 @@ import 'services/firebaseService.dart';
 import 'theme.dart';
 
 class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
   @override
-  _HomePageState createState() => _HomePageState();
+  HomePageState createState() => HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class HomePageState extends State<HomePage> {
   int _currentIndex = 0;
   late Stream<Map<String, dynamic>> expenseDataStream;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   @override
   void initState() {
@@ -149,13 +149,14 @@ class _HomePageState extends State<HomePage> {
                           child: Container(
                             margin: const EdgeInsets.only(top: 20),
                             width: double.infinity,
-                            height: 150,
+                            height: 160,
                             decoration: BoxDecoration(
                               color: Colors.amber,
                               borderRadius: BorderRadius.circular(16.0),
                             ),
                             padding: const EdgeInsets.all(16),
                             child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
                                   mainAxisAlignment:
@@ -209,17 +210,16 @@ class _HomePageState extends State<HomePage> {
                                     )
                                   ],
                                 ),
-                                const Column(
-                                  children: [
-                                    Text(
-                                      "data",
-                                      style: AppTextStyles.bodyText,
-                                    ),
-                                    Text(
-                                      "data",
-                                      style: AppTextStyles.headline,
-                                    )
-                                  ],
+                                const SizedBox(
+                                  height: 10,
+                                ),
+                                const Text(
+                                  "Your Balance",
+                                  style: AppTextStyles.bodyText,
+                                ),
+                                const Text(
+                                  "data",
+                                  style: AppTextStyles.headline,
                                 )
                               ],
                             ),

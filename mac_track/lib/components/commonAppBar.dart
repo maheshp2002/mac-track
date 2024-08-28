@@ -5,7 +5,7 @@ import 'themeManager.dart';
 class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
 
-  CommonAppBar({required this.title});
+  const CommonAppBar({super.key, required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -34,5 +34,5 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   @override
-  Size get preferredSize => Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }

@@ -7,6 +7,8 @@ import 'package:mac_track/insight.dart';
 import '../sign.dart';
 
 class NavBar extends StatelessWidget {
+  const NavBar({super.key});
+
   Future<void> _signOut(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
     await GoogleSignIn().signOut();

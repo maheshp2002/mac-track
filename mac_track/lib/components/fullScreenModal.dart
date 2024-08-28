@@ -1,31 +1,32 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import '../config/constants.dart';
 import '../services/firebaseService.dart';
 import '../theme.dart';
 
 class FullScreenModal extends StatefulWidget {
+  const FullScreenModal({super.key});
+
   @override
-  _FullScreenModalState createState() => _FullScreenModalState();
+  FullScreenModalState createState() => FullScreenModalState();
 }
 
-class _FullScreenModalState extends State<FullScreenModal> {
+class FullScreenModalState extends State<FullScreenModal> {
   late Stream<Map<String, dynamic>> _bankDataStream;
   late FocusNode _amountFocusNode;
   late FocusNode _expenseFocusNode;
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _expenseController = TextEditingController();
-  int? _selectedChipIndex;
+  String? _selectedBankId; // Store the selected bank's document ID
   bool _isAmountValid = true;
   bool _isExpenseTypeValid = true;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // Dropdown related variables
   String _selectedTransactionType = 'Withdraw';
   final List<String> _transactionTypes = ['Deposit', 'Withdraw', 'Transfer'];
-  String _selectedExpenseCategory = 'Withdraw';
+  String _selectedExpenseCategory = AppConstants.expenseCategoryCustom;
   final List<String> _expenseCategory = [
     'Spotify',
     'Electricity',
@@ -39,14 +40,12 @@ class _FullScreenModalState extends State<FullScreenModal> {
     _amountFocusNode = FocusNode()
       ..addListener(() {
         if (!_amountFocusNode.hasFocus) {
-          // Trigger validation when the focus is lost
           _formKey.currentState?.validate();
         }
       });
     _expenseFocusNode = FocusNode()
       ..addListener(() {
         if (!_expenseFocusNode.hasFocus) {
-          // Trigger validation when the focus is lost
           _formKey.currentState?.validate();
         }
       });
@@ -54,20 +53,19 @@ class _FullScreenModalState extends State<FullScreenModal> {
   }
 
   Future<void> _submit() async {
-    if (_formKey.currentState!.validate() && _selectedChipIndex != null) {
+    if (_formKey.currentState!.validate() && _selectedBankId != null) {
       final amount = _amountController.text;
       final expenseType = _expenseController.text;
-      final selectedBank = _selectedChipIndex;
 
       // Get the signed-in user's email
-      GoogleSignInAccount? user = await _googleSignIn.signInSilently();
-      if (user == null) {
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user == null || user.email == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('User not signed in.')),
         );
         return;
       }
-      String userEmail = user.email;
+      String userEmail = user.email ?? "";
 
       // Generate a unique document ID using date, time, and amount
       DateTime now = DateTime.now();
@@ -76,7 +74,7 @@ class _FullScreenModalState extends State<FullScreenModal> {
       // Prepare the data to be stored
       Map<String, dynamic> expenseData = {
         'amount': amount,
-        'bankIndex': selectedBank,
+        'bankId': _selectedBankId, // Store the selected bank's document ID
         'expense': expenseType,
         'transactionType': _selectedTransactionType,
         'expenseCategory': _selectedExpenseCategory,
@@ -91,7 +89,7 @@ class _FullScreenModalState extends State<FullScreenModal> {
       // Optionally close the modal after submitting
       Navigator.of(context).pop();
     } else {
-      if (_selectedChipIndex == null) {
+      if (_selectedBankId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please select a bank.')),
         );
@@ -161,7 +159,7 @@ class _FullScreenModalState extends State<FullScreenModal> {
                             style: theme.textTheme.bodyLarge,
                           ));
                         } else {
-                          final bankData = snapshot.data!.values.toList();
+                          final bankData = snapshot.data!;
 
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,7 +198,6 @@ class _FullScreenModalState extends State<FullScreenModal> {
                                 ),
                                 cursorColor: AppColors.secondary,
                                 onChanged: (value) {
-                                  // Validate on change
                                   _formKey.currentState?.validate();
                                 },
                                 validator: (value) {
@@ -252,13 +249,17 @@ class _FullScreenModalState extends State<FullScreenModal> {
                                   });
                                 },
                                 decoration: const InputDecoration(
-                                  labelText: 'Expense Category',
-                                  border: OutlineInputBorder(),
-                                ),
+                                    labelText: 'Expense Category',
+                                    labelStyle: TextStyle(color: Colors.white),
+                                    border: OutlineInputBorder(),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderSide: BorderSide(
+                                          color: AppColors.secondary),
+                                    )),
                               ),
                               const SizedBox(height: 30),
                               TextFormField(
-                                enabled: _selectedExpenseCategory !=
+                                enabled: _selectedExpenseCategory ==
                                     AppConstants.expenseCategoryCustom,
                                 controller: _expenseController,
                                 focusNode: _expenseFocusNode,
@@ -270,12 +271,9 @@ class _FullScreenModalState extends State<FullScreenModal> {
                                     FontAwesomeIcons.indianRupeeSign,
                                     color: _isExpenseTypeValid
                                         ? _expenseFocusNode.hasFocus
-                                            ? AppColors
-                                                .secondary // Color when focused
-                                            : theme.iconTheme
-                                                .color // Color when not focused
-                                        : Colors
-                                            .red, // Color when validation fails
+                                            ? AppColors.secondary
+                                            : theme.iconTheme.color
+                                        : Colors.red,
                                   ),
                                   border: const OutlineInputBorder(),
                                   focusedBorder: const OutlineInputBorder(
@@ -285,11 +283,10 @@ class _FullScreenModalState extends State<FullScreenModal> {
                                 ),
                                 cursorColor: AppColors.secondary,
                                 onChanged: (value) {
-                                  // Validate on change
                                   _formKey.currentState?.validate();
                                 },
                                 validator: (value) {
-                                  if (_selectedExpenseCategory !=
+                                  if (_selectedExpenseCategory ==
                                           AppConstants.expenseCategoryCustom &&
                                       (value == null || value.isEmpty)) {
                                     setState(() {
@@ -326,63 +323,70 @@ class _FullScreenModalState extends State<FullScreenModal> {
                                   });
                                 },
                                 decoration: const InputDecoration(
-                                  labelText: 'Transaction Type',
-                                  border: OutlineInputBorder(),
-                                ),
+                                    labelText: 'Transaction Type',
+                                    labelStyle: TextStyle(color: Colors.white),
+                                    border: OutlineInputBorder(),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderSide: BorderSide(
+                                          color: AppColors.secondary),
+                                    )),
                               ),
                               const SizedBox(height: 20),
-                              Text("Bank",
-                                  style: theme.textTheme.displayMedium),
-                              const SizedBox(height: 10),
                               Wrap(
                                 spacing: 8.0,
-                                children: List<Widget>.generate(bankData.length,
-                                    (int index) {
-                                  final bank = bankData[index];
-                                  final bankName = bank['name'] as String;
-                                  final bankImageUrl = bank['image'] as String;
-
-                                  return ChoiceChip(
-                                    showCheckmark: false,
-                                    avatar: Image.network(bankImageUrl),
-                                    label: Text(bankName),
-                                    selected: _selectedChipIndex == index,
-                                    onSelected: (bool selected) {
-                                      setState(() {
-                                        _selectedChipIndex =
-                                            selected ? index : null;
-                                      });
-                                    },
-                                    checkmarkColor: AppColors.backgroundLight,
-                                    selectedColor: AppColors.secondary,
-                                    backgroundColor:
-                                        customTheme!.chipBackgroundColor,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(50.0),
-                                    ),
-                                    labelStyle: TextStyle(
-                                      color: _selectedChipIndex == index
-                                          ? Colors.white
-                                          : theme.textTheme.bodyLarge!.color,
-                                    ),
-                                  );
-                                }),
+                                runSpacing: 4.0,
+                                children: bankData.entries
+                                    .map<Widget>((entry) => ChoiceChip(
+                                          showCheckmark: false,
+                                          avatar: Image.network(
+                                              entry.value['image']),
+                                          label: Text(entry.value['name']),
+                                          labelStyle: TextStyle(
+                                            color: _selectedBankId == entry.key
+                                                ? Colors.white
+                                                : theme
+                                                    .textTheme.bodyLarge!.color,
+                                          ),
+                                          selectedColor: AppColors.secondary,
+                                          backgroundColor:
+                                              customTheme!.chipBackgroundColor,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(50.0),
+                                          ),
+                                          selected: _selectedBankId ==
+                                              entry.key, // Compare document ID
+                                          onSelected: (selected) {
+                                            setState(() {
+                                              _selectedBankId = selected
+                                                  ? entry
+                                                      .key // Store document ID
+                                                  : null;
+                                            });
+                                          },
+                                        ))
+                                    .toList(),
                               ),
-                              const SizedBox(height: 20),
-                              Center(
-                                  child: ElevatedButton(
-                                style: ButtonStyle(
-                                  backgroundColor: MaterialStateProperty.all(
-                                      AppColors.secondary),
-                                ),
-                                onPressed: _submit,
-                                child: Text("Save",
-                                    style: theme.textTheme.labelLarge),
-                              )),
                             ],
                           );
                         }
                       },
+                    ),
+                  ),
+                ),
+                // Save Button
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: ElevatedButton(
+                      onPressed: _submit,
+                      style: ButtonStyle(
+                        backgroundColor:
+                            WidgetStateProperty.all(AppColors.secondaryGreen),
+                      ),
+                      child: Text('Save', style: theme.textTheme.bodyLarge),
                     ),
                   ),
                 ),
@@ -392,15 +396,6 @@ class _FullScreenModalState extends State<FullScreenModal> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _amountController.dispose();
-    _expenseController.dispose();
-    _amountFocusNode.dispose();
-    _expenseFocusNode.dispose();
-    super.dispose();
   }
 }
 

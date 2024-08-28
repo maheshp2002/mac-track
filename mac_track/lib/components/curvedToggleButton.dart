@@ -3,11 +3,13 @@ import 'package:toggle_switch/toggle_switch.dart';
 import '../theme.dart';
 
 class CurvedToggleButton extends StatefulWidget {
+  const CurvedToggleButton({super.key});
+
   @override
-  _CurvedToggleButtonState createState() => _CurvedToggleButtonState();
+  CurvedToggleButtonState createState() => CurvedToggleButtonState();
 }
 
-class _CurvedToggleButtonState extends State<CurvedToggleButton> {
+class CurvedToggleButtonState extends State<CurvedToggleButton> {
   int _currentIndex = 0;
 
   @override

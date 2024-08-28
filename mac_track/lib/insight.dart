@@ -8,11 +8,13 @@ import 'components/themeManager.dart';
 import 'theme.dart';
 
 class Insight extends StatefulWidget {
+  const Insight({super.key});
+
   @override
-  _InsightState createState() => _InsightState();
+  InsightState createState() => InsightState();
 }
 
-class _InsightState extends State<Insight> {
+class InsightState extends State<Insight> {
   @override
   Widget build(BuildContext context) {
     final themeManager = Provider.of<ThemeManager>(context);
@@ -21,10 +23,10 @@ class _InsightState extends State<Insight> {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: CommonAppBar(
+      appBar: const CommonAppBar(
         title: 'Insight',
       ),
-      drawer: NavBar(),
+      drawer: const NavBar(),
       body: Container(
           decoration: AppTheme.getBackgroundDecoration(themeMode),
           padding: const EdgeInsets.only(top: kToolbarHeight + 50),
@@ -41,7 +43,7 @@ class _InsightState extends State<Insight> {
                         Text("Rs. 999.0", style: theme.textTheme.displayLarge)
                       ],
                     )),
-                CurvedToggleButton(),
+                const CurvedToggleButton(),
                 const ExpenseGraph(),
               ]))),
     );

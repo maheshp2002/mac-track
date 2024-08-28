@@ -19,10 +19,10 @@ class SlideInAnimation extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _SlideInAnimationState createState() => _SlideInAnimationState();
+  SlideInAnimationState createState() => SlideInAnimationState();
 }
 
-class _SlideInAnimationState extends State<SlideInAnimation>
+class SlideInAnimationState extends State<SlideInAnimation>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<Offset> _animation;
