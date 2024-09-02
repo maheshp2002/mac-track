@@ -54,6 +54,7 @@ dependencies:
   # Components
   toggle_switch: ^2.3.0
   fl_chart: ^0.68.0
+  bot_toast: ^4.1.3
 
   # Others
   provider: ^6.1.2

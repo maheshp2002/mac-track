@@ -11,6 +11,7 @@ import 'components/fullScreenModal.dart';
 import 'components/navbar.dart';
 import 'components/slideInAnimation.dart';
 import 'components/themeManager.dart';
+import 'components/toast.dart';
 import 'services/firebaseService.dart';
 import 'theme.dart';
 import 'package:intl/intl.dart';
@@ -390,11 +391,6 @@ class HomePageState extends State<HomePage> {
                       ),
                     );
                   } else {
-                    final bankData = bankSnapshot.data!;
-                    final banks = bankData.values
-                        .map((dynamic bank) => bank as Map<String, dynamic>)
-                        .toList();
-
                     return Column(
                       children: [
                         StreamBuilder<Map<String, dynamic>>(
@@ -420,7 +416,7 @@ class HomePageState extends State<HomePage> {
                             } else {
                               final latestSalaryDoc = salarySnapshot.data!;
                               final latestSalaryAmount =
-                                  latestSalaryDoc['amount'];
+                                  latestSalaryDoc['currentAmount'];
 
                               final formattedSalaryAmount =
                                   NumberFormat.currency(
@@ -580,9 +576,7 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
       // Get the signed-in user's email
       User? user = FirebaseAuth.instance.currentUser;
       if (user == null || user.email == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User not signed in.')),
-        );
+        showToast('User not signed in.');
         return;
       }
       String userEmail = user.email ?? "";
@@ -593,7 +587,8 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
 
       // Prepare the data to be stored
       Map<String, dynamic> expenseData = {
-        'amount': amount,
+        'totalAmount': amount,
+        'currentAmount': amount,
         'timestamp': now,
         'bankId': _selectedBankId
       };
@@ -606,9 +601,7 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
       Navigator.of(context).pop();
     } else {
       if (_selectedBankId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a bank.')),
-        );
+        showToast('Please select a bank.');
       }
     }
   }
@@ -799,9 +792,7 @@ class AddBankDialogState extends State<AddBankDialog> {
     if (_formKey.currentState!.validate() && _selectedBankId != null) {
       User? user = FirebaseAuth.instance.currentUser;
       if (user == null || user.email == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User not signed in.')),
-        );
+        showToast('User not signed in.');
         return;
       }
       String userEmail = user.email ?? "";
@@ -825,9 +816,7 @@ class AddBankDialogState extends State<AddBankDialog> {
       Navigator.of(context).pop();
     } else {
       if (_selectedBankId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a bank.')),
-        );
+        showToast('Please select a bank.');
       }
     }
   }

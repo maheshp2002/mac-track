@@ -13,6 +13,9 @@ class AppColors {
   static const Color filterButtonWhite = Color(0xFFfbfbfb);
   static const Color filterButtonGreen = Color(0xFF7efa8b);
   static const Color linkColor = Colors.blue;
+  static const Color danger = Color(0xFFED3B3B);
+  static const Color warning = Color(0xFFED9A3B);
+  static const Color white = Color(0xFFFFFFFF);
 }
 
 class AppTextStyles {

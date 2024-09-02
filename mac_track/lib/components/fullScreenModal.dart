@@ -1,6 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:mac_track/components/toast.dart';
 import '../config/constants.dart';
 import '../services/firebaseService.dart';
 import '../theme.dart';
@@ -15,6 +17,8 @@ class FullScreenModal extends StatefulWidget {
 class FullScreenModalState extends State<FullScreenModal> {
   late Stream<Map<String, dynamic>> _bankDataStream;
   late Stream<Map<String, dynamic>> userBankDataStream;
+  late Stream<Map<String, dynamic>> expenseTypeDataStream;
+  late Stream<Map<String, dynamic>> salaryDataStream;
   late FocusNode _amountFocusNode;
   late FocusNode _expenseFocusNode;
   final _formKey = GlobalKey<FormState>();
@@ -29,12 +33,7 @@ class FullScreenModalState extends State<FullScreenModal> {
   String _selectedTransactionType = 'Withdraw';
   final List<String> _transactionTypes = ['Deposit', 'Withdraw', 'Transfer'];
   String _selectedExpenseCategory = AppConstants.expenseCategoryCustom;
-  final List<String> _expenseCategory = [
-    'Spotify',
-    'Electricity',
-    'Water Bill',
-    AppConstants.expenseCategoryCustom
-  ];
+  final List<String> _expenseCategory = [];
 
   @override
   void initState() {
@@ -54,6 +53,36 @@ class FullScreenModalState extends State<FullScreenModal> {
     _bankDataStream = FirebaseService().streamBankData();
     initializeBankData();
   }
+
+  // void getExpenseCategory() {
+  //   expenseTypeDataStream.listen((expenseTypeData) async {
+  //     // Fetch all banks from the master collection
+  //     Map<String, dynamic> masterBanks = await bankDataStream.first;
+
+  //     List<Map<String, dynamic>> updatedUserBanks = [];
+  //     String? primaryBankId;
+
+  //     expenseTypeData.entries.forEach((entry) {
+  //       final bankId = entry.value['bankId'];
+  //       final isPrimary = entry.value['isPrimary'];
+  //       final bankDetails = masterBanks[bankId];
+
+  //       if (bankDetails != null) {
+  //         updatedUserBanks.add({
+  //           'id': bankId,
+  //           'name': bankDetails['name'],
+  //           'image': bankDetails['image'],
+  //           'isPrimary': isPrimary,
+  //         });
+
+  //         // Identify the primary bank ID
+  //         if (isPrimary == true) {
+  //           primaryBankId = bankId;
+  //         }
+  //       }
+  //     });
+  //   });
+  // }
 
   void initializeBankData() {
     User? user = FirebaseAuth.instance.currentUser;
@@ -89,6 +118,41 @@ class FullScreenModalState extends State<FullScreenModal> {
     }
   }
 
+  Future<Map<String, dynamic>> _getLatestSalaryData(
+      String? selectedBankId) async {
+    final salarySnapshot = await FirebaseService()
+        .streamGetAllData(FirebaseAuth.instance.currentUser!.email!,
+            FirebaseConstants.salaryCollection)
+        .first; // Get the first snapshot
+
+    // Filter the salary data by bankId
+    final filteredSalaries = salarySnapshot.entries
+        .where((entry) => entry.value['bankId'] == selectedBankId)
+        .toList();
+
+    // Sort the filtered salaries by timestamp in descending order
+    filteredSalaries.sort((a, b) {
+      final timestampA = a.value['timestamp'] as Timestamp;
+      final timestampB = b.value['timestamp'] as Timestamp;
+      return timestampB.compareTo(timestampA); // latest first
+    });
+
+    // Get the latest salary document and its currentAmount
+    if (filteredSalaries.isNotEmpty) {
+      final latestSalaryDoc = filteredSalaries.first;
+      final currentAmount = latestSalaryDoc.value['currentAmount'] as double;
+      return {
+        'documentId': latestSalaryDoc.key,
+        'currentAmount': currentAmount,
+      };
+    } else {
+      return {
+        'documentId': '',
+        'currentAmount': 0.0,
+      };
+    }
+  }
+
   Future<void> _submit() async {
     if (_formKey.currentState!.validate() && _selectedBankId != null) {
       double amount = double.parse(_amountController.text);
@@ -97,12 +161,23 @@ class FullScreenModalState extends State<FullScreenModal> {
       // Get the signed-in user's email
       User? user = FirebaseAuth.instance.currentUser;
       if (user == null || user.email == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User not signed in.')),
-        );
+        showToast('User not signed in.');
         return;
       }
       String userEmail = user.email ?? "";
+
+      // Get the latest salary document ID and its current amount
+      Map<String, dynamic> latestSalaryData =
+          await _getLatestSalaryData(_selectedBankId);
+
+      String latestSalaryDocumentId = latestSalaryData['documentId'];
+      double currentAmount = latestSalaryData['currentAmount'];
+
+      // Check if there is sufficient balance
+      if (currentAmount < amount) {
+        showToast('Insufficient balance in salary.');
+        return;
+      }
 
       // Generate a unique document ID using date, time, and amount
       DateTime now = DateTime.now();
@@ -116,10 +191,18 @@ class FullScreenModalState extends State<FullScreenModal> {
         'transactionType': _selectedTransactionType,
         'expenseCategory': _selectedExpenseCategory,
         'timestamp': now,
-        'salary': ''
+        'salaryDocumentId':
+            latestSalaryDocumentId, // Store the document ID of the latest salary
       };
 
-      // Save the data to Firebase
+      // Update the current amount in the salary document
+      await FirebaseService().updateSalaryAmount(
+        user.email,
+        latestSalaryDocumentId,
+        currentAmount - amount,
+      );
+
+      // Save the expense data to Firebase
       await FirebaseService().addData(userEmail, documentId, expenseData,
           FirebaseConstants.expenseCollection);
 
@@ -127,9 +210,7 @@ class FullScreenModalState extends State<FullScreenModal> {
       Navigator.of(context).pop();
     } else {
       if (_selectedBankId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a bank.')),
-        );
+        showToast('Please select a bank.');
       }
     }
   }
@@ -196,8 +277,6 @@ class FullScreenModalState extends State<FullScreenModal> {
                             style: theme.textTheme.bodyLarge,
                           ));
                         } else {
-                          final bankData = snapshot.data!;
-
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -372,17 +451,17 @@ class FullScreenModalState extends State<FullScreenModal> {
                               Wrap(
                                 spacing: 8.0,
                                 runSpacing: 4.0,
-                                children: bankData.entries
+                                children: userBanks
                                     .map<Widget>((entry) => ChoiceChip(
                                           showCheckmark: false,
-                                          avatar: Image.network(
-                                              entry.value['image']),
-                                          label: Text(entry.value['name']),
+                                          avatar: Image.network(entry['image']),
+                                          label: Text(entry['name']),
                                           labelStyle: TextStyle(
-                                            color: _selectedBankId == entry.key
-                                                ? Colors.white
-                                                : theme
-                                                    .textTheme.bodyLarge!.color,
+                                            color:
+                                                _selectedBankId == entry['id']
+                                                    ? Colors.white
+                                                    : theme.textTheme.bodyLarge!
+                                                        .color,
                                           ),
                                           selectedColor: AppColors.secondary,
                                           backgroundColor:
@@ -392,12 +471,13 @@ class FullScreenModalState extends State<FullScreenModal> {
                                                 BorderRadius.circular(50.0),
                                           ),
                                           selected: _selectedBankId ==
-                                              entry.key, // Compare document ID
+                                              entry[
+                                                  'id'], // Compare document ID
                                           onSelected: (selected) {
                                             setState(() {
                                               _selectedBankId = selected
-                                                  ? entry
-                                                      .key // Store document ID
+                                                  ? entry['id']
+                                                  // Store document ID
                                                   : null;
                                             });
                                           },

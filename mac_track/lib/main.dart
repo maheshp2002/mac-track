@@ -1,3 +1,4 @@
+import 'package:bot_toast/bot_toast.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -36,6 +37,8 @@ class MyApp extends StatelessWidget {
           themeMode: themeManager.themeMode,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
+          builder: BotToastInit(),
+          navigatorObservers: [BotToastNavigatorObserver()],
           home: SplashScreen(),
         );
       },

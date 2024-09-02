@@ -54,4 +54,15 @@ class FirebaseService {
       return snapshot.docs.map((doc) => doc.data()).toList();
     });
   }
+
+  // Update the salary amount in the salary document
+  Future<void> updateSalaryAmount(
+      String? userEmail, String documentId, double newAmount) async {
+    await FirebaseFirestore.instance
+        .collection(FirebaseConstants.usersCollection)
+        .doc(userEmail)
+        .collection(FirebaseConstants.salaryCollection)
+        .doc(documentId)
+        .update({'currentAmount': newAmount});
+  }
 }
