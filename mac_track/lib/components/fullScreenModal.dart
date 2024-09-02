@@ -14,11 +14,13 @@ class FullScreenModal extends StatefulWidget {
 
 class FullScreenModalState extends State<FullScreenModal> {
   late Stream<Map<String, dynamic>> _bankDataStream;
+  late Stream<Map<String, dynamic>> userBankDataStream;
   late FocusNode _amountFocusNode;
   late FocusNode _expenseFocusNode;
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _expenseController = TextEditingController();
+  List<Map<String, dynamic>> userBanks = [];
   String? _selectedBankId; // Store the selected bank's document ID
   bool _isAmountValid = true;
   bool _isExpenseTypeValid = true;
@@ -50,11 +52,46 @@ class FullScreenModalState extends State<FullScreenModal> {
         }
       });
     _bankDataStream = FirebaseService().streamBankData();
+    initializeBankData();
+  }
+
+  void initializeBankData() {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      userBankDataStream = FirebaseService()
+          .streamGetAllData(user.email!, FirebaseConstants.userBankCollection);
+
+      userBankDataStream.listen((userBankData) async {
+        // Fetch all banks from the master collection
+        Map<String, dynamic> masterBanks = await _bankDataStream.first;
+
+        List<Map<String, dynamic>> updatedUserBanks = [];
+
+        userBankData.entries.forEach((entry) {
+          final bankId = entry.value['bankId'];
+          final isPrimary = entry.value['isPrimary'];
+          final bankDetails = masterBanks[bankId];
+
+          if (bankDetails != null) {
+            updatedUserBanks.add({
+              'id': bankId,
+              'name': bankDetails['name'],
+              'image': bankDetails['image'],
+              'isPrimary': isPrimary,
+            });
+          }
+        });
+
+        setState(() {
+          userBanks = updatedUserBanks;
+        });
+      });
+    }
   }
 
   Future<void> _submit() async {
     if (_formKey.currentState!.validate() && _selectedBankId != null) {
-      final amount = _amountController.text;
+      double amount = double.parse(_amountController.text);
       final expenseType = _expenseController.text;
 
       // Get the signed-in user's email
@@ -83,8 +120,8 @@ class FullScreenModalState extends State<FullScreenModal> {
       };
 
       // Save the data to Firebase
-      await FirebaseService()
-          .addData(userEmail, documentId, expenseData, 'expense');
+      await FirebaseService().addData(userEmail, documentId, expenseData,
+          FirebaseConstants.expenseCollection);
 
       // Optionally close the modal after submitting
       Navigator.of(context).pop();

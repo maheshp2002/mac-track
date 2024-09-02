@@ -12,6 +12,7 @@ class AppColors {
   static const Color filterButtonBlack = Color(0xFF1e202e);
   static const Color filterButtonWhite = Color(0xFFfbfbfb);
   static const Color filterButtonGreen = Color(0xFF7efa8b);
+  static const Color linkColor = Colors.blue;
 }
 
 class AppTextStyles {
@@ -136,6 +137,7 @@ class AppTheme {
           dropdownIconColor: AppColors.secondaryGreen),
     ],
     dropdownMenuTheme: const DropdownMenuThemeData(),
+    dialogBackgroundColor: AppColors.backgroundLight,
     iconTheme: const IconThemeData(color: Colors.black87),
     primaryColor: AppColors.backgroundLight,
     scaffoldBackgroundColor: AppColors.backgroundLight,
@@ -143,6 +145,8 @@ class AppTheme {
     textTheme: TextTheme(
       displayLarge: AppTextStyles.headline.copyWith(color: Colors.black87),
       bodyLarge: AppTextStyles.bodyText.copyWith(color: Colors.black87),
+      headlineLarge:
+          AppTextStyles.bodyText.copyWith(color: Colors.black87, fontSize: 25),
       displayMedium: AppTextStyles.appBarTitle
           .copyWith(color: Colors.black87, fontWeight: FontWeight.bold),
       labelSmall: AppTextStyles.appBarTitle
@@ -170,12 +174,15 @@ class AppTheme {
           dropdownIconColor: Colors.white70),
     ],
     iconTheme: const IconThemeData(color: Colors.white),
+    dialogBackgroundColor: AppColors.backgroundDark,
     buttonTheme: const ButtonThemeData(buttonColor: AppColors.primaryGreen),
     primaryColor: AppColors.backgroundDark,
     scaffoldBackgroundColor: AppColors.backgroundDark,
     textTheme: TextTheme(
       displayLarge: AppTextStyles.headline.copyWith(color: Colors.white),
       bodyLarge: AppTextStyles.bodyText.copyWith(color: Colors.white),
+      headlineLarge:
+          AppTextStyles.bodyText.copyWith(color: Colors.white, fontSize: 25),
       displayMedium: AppTextStyles.appBarTitle
           .copyWith(color: Colors.white, fontWeight: FontWeight.bold),
       labelSmall:

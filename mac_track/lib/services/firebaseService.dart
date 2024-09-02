@@ -1,13 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:mac_track/config/constants.dart';
 
 class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Stream<Map<String, dynamic>> streamBankData() {
     return _firestore
-        .collection('masters') // Collection under which 'banks' is located
-        .doc('banks') // Document which holds 'banks' collection
-        .collection('banks') // The collection you are interested in
+        .collection(FirebaseConstants.mastersCollection)
+        .doc(FirebaseConstants.banksCollection)
+        .collection(FirebaseConstants.banksCollection)
         .snapshots()
         .map((snapshot) {
       // Convert snapshot to a map of documents with their ID as keys
@@ -20,7 +21,7 @@ class FirebaseService {
       Map<String, dynamic> expenseData, String collectionName) async {
     // Reference to the user's expense collection
     CollectionReference expenseCollection = _firestore
-        .collection('users')
+        .collection(FirebaseConstants.usersCollection)
         .doc(userEmail)
         .collection(collectionName);
 
@@ -31,7 +32,7 @@ class FirebaseService {
   Stream<Map<String, dynamic>> streamGetAllData(
       String userEmail, String collectionName) {
     return _firestore
-        .collection('users')
+        .collection(FirebaseConstants.usersCollection)
         .doc(userEmail)
         .collection(collectionName)
         .snapshots()
@@ -39,6 +40,18 @@ class FirebaseService {
       // Convert snapshot to a map of documents with their ID as keys
       snapshot.docs.map((doc) => doc.data()).toList();
       return {for (var doc in snapshot.docs) doc.id: doc.data()};
+    });
+  }
+
+  Stream<List<Map<String, dynamic>>> streamUserBankData(
+      String userEmail, String collectionName) {
+    return _firestore
+        .collection(FirebaseConstants.usersCollection)
+        .doc(userEmail)
+        .collection(collectionName)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => doc.data()).toList();
     });
   }
 }
