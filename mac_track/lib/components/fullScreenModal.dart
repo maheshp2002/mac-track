@@ -33,7 +33,13 @@ class FullScreenModalState extends State<FullScreenModal> {
   String _selectedTransactionType = 'Withdraw';
   final List<String> _transactionTypes = ['Deposit', 'Withdraw', 'Transfer'];
   String _selectedExpenseCategory = AppConstants.expenseCategoryCustom;
-  final List<String> _expenseCategory = [];
+  final List<String> _expenseCategory = [
+    'Spotify',
+    'Water Bill',
+    'House Rent',
+    'Electricity',
+    AppConstants.expenseCategoryCustom
+  ];
 
   @override
   void initState() {
