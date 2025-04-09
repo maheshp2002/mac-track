@@ -39,7 +39,7 @@ class MyApp extends StatelessWidget {
           darkTheme: AppTheme.darkTheme,
           builder: BotToastInit(),
           navigatorObservers: [BotToastNavigatorObserver()],
-          home: SplashScreen(),
+          home: const SplashScreen(),
         );
       },
     );

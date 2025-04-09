@@ -65,4 +65,17 @@ class FirebaseService {
         .doc(documentId)
         .update({'currentAmount': newAmount});
   }
+
+  Stream<Map<String, dynamic>> streamExpenseTypes() {
+    return _firestore
+        .collection(FirebaseConstants.mastersCollection)
+        .doc(FirebaseConstants.expenseTypesCollection)
+        .collection(FirebaseConstants.expenseTypesCollection)
+        .snapshots()
+        .map((snapshot) {
+      return {
+        for (var doc in snapshot.docs) doc.id: doc.data(),
+      };
+    });
+  }
 }

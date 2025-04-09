@@ -30,65 +30,57 @@ class FullScreenModalState extends State<FullScreenModal> {
   bool _isExpenseTypeValid = true;
 
   // Dropdown related variables
-  String _selectedTransactionType = 'Withdraw';
-  final List<String> _transactionTypes = ['Deposit', 'Withdraw', 'Transfer'];
-  String _selectedExpenseCategory = AppConstants.expenseCategoryCustom;
-  final List<String> _expenseCategory = [
-    'Spotify',
-    'Water Bill',
-    'House Rent',
-    'Electricity',
-    AppConstants.expenseCategoryCustom
+  String _selectedTransactionType = AppConstants.transactionTypeWithdraw;
+  final List<String> _transactionTypes = [
+    AppConstants.transactionTypeDeposit,
+    AppConstants.transactionTypeWithdraw,
+    AppConstants.transactionTypeTransfer
   ];
+
+  Map<String, String> _expenseCategoryMap = {}; // name -> document ID
+  List<String> _expenseCategoryNames = [];
+  String? _selectedExpenseCategory;
+  String? _selectedExpenseCategoryId;
 
   @override
   void initState() {
     super.initState();
     _amountFocusNode = FocusNode()
       ..addListener(() {
-        if (!_amountFocusNode.hasFocus) {
-          _formKey.currentState?.validate();
-        }
+        if (!_amountFocusNode.hasFocus) _formKey.currentState?.validate();
       });
     _expenseFocusNode = FocusNode()
       ..addListener(() {
-        if (!_expenseFocusNode.hasFocus) {
-          _formKey.currentState?.validate();
-        }
+        if (!_expenseFocusNode.hasFocus) _formKey.currentState?.validate();
       });
+
     _bankDataStream = FirebaseService().streamBankData();
     initializeBankData();
+
+    expenseTypeDataStream = FirebaseService().streamExpenseTypes();
+
+    expenseTypeDataStream.first.then((typesData) {
+      final categoryMap = <String, String>{};
+      final categoryNames = <String>[];
+
+      typesData.forEach((docId, data) {
+        final name = data['name'] as String?;
+        if (name != null && name.isNotEmpty) {
+          categoryMap[name] = docId;
+          categoryNames.add(name);
+        }
+      });
+
+      setState(() {
+        _expenseCategoryMap = categoryMap;
+        _expenseCategoryNames = categoryNames;
+        if (categoryNames.isNotEmpty) {
+          _selectedExpenseCategory = categoryNames.first;
+          _selectedExpenseCategoryId = categoryMap[categoryNames.first];
+        }
+      });
+    });
   }
-
-  // void getExpenseCategory() {
-  //   expenseTypeDataStream.listen((expenseTypeData) async {
-  //     // Fetch all banks from the master collection
-  //     Map<String, dynamic> masterBanks = await bankDataStream.first;
-
-  //     List<Map<String, dynamic>> updatedUserBanks = [];
-  //     String? primaryBankId;
-
-  //     expenseTypeData.entries.forEach((entry) {
-  //       final bankId = entry.value['bankId'];
-  //       final isPrimary = entry.value['isPrimary'];
-  //       final bankDetails = masterBanks[bankId];
-
-  //       if (bankDetails != null) {
-  //         updatedUserBanks.add({
-  //           'id': bankId,
-  //           'name': bankDetails['name'],
-  //           'image': bankDetails['image'],
-  //           'isPrimary': isPrimary,
-  //         });
-
-  //         // Identify the primary bank ID
-  //         if (isPrimary == true) {
-  //           primaryBankId = bankId;
-  //         }
-  //       }
-  //     });
-  //   });
-  // }
 
   void initializeBankData() {
     User? user = FirebaseAuth.instance.currentUser;
@@ -178,11 +170,20 @@ class FullScreenModalState extends State<FullScreenModal> {
 
       String latestSalaryDocumentId = latestSalaryData['documentId'];
       double currentAmount = latestSalaryData['currentAmount'];
+      double updatedAmount = currentAmount;
 
-      // Check if there is sufficient balance
-      if (currentAmount < amount) {
-        showToast('Insufficient balance in salary.');
-        return;
+      if (_selectedTransactionType == AppConstants.transactionTypeWithdraw ||
+          _selectedTransactionType == AppConstants.transactionTypeTransfer) {
+        // Withdraw/Transfer → Deduct
+        if (currentAmount < amount) {
+          showToast('Insufficient balance in salary.');
+          return;
+        }
+        updatedAmount -= amount;
+      } else if (_selectedTransactionType ==
+          AppConstants.transactionTypeDeposit) {
+        // Deposit → Add
+        updatedAmount += amount;
       }
 
       // Generate a unique document ID using date, time, and amount
@@ -195,7 +196,8 @@ class FullScreenModalState extends State<FullScreenModal> {
         'bankId': _selectedBankId, // Store the selected bank's document ID
         'expense': expenseType,
         'transactionType': _selectedTransactionType,
-        'expenseCategory': _selectedExpenseCategory,
+        'expenseCategory': _selectedExpenseCategoryId ??
+            _selectedExpenseCategory?.toLowerCase(),
         'timestamp': now,
         'salaryDocumentId':
             latestSalaryDocumentId, // Store the document ID of the latest salary
@@ -205,7 +207,7 @@ class FullScreenModalState extends State<FullScreenModal> {
       await FirebaseService().updateSalaryAmount(
         user.email,
         latestSalaryDocumentId,
-        currentAmount - amount,
+        updatedAmount,
       );
 
       // Save the expense data to Firebase
@@ -213,7 +215,7 @@ class FullScreenModalState extends State<FullScreenModal> {
           FirebaseConstants.expenseCollection);
 
       // Optionally close the modal after submitting
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(AppConstants.refresh);
     } else {
       if (_selectedBankId == null) {
         showToast('Please select a bank.');
@@ -231,7 +233,6 @@ class FullScreenModalState extends State<FullScreenModal> {
       body: SafeArea(
         child: Container(
           width: double.infinity,
-          height: double.infinity,
           color: customTheme?.modalBackgroundColor ?? Colors.white,
           child: Form(
             key: _formKey,
@@ -249,7 +250,8 @@ class FullScreenModalState extends State<FullScreenModal> {
                         color: theme.iconTheme.color ?? Colors.black,
                       ),
                       onPressed: () {
-                        Navigator.of(context).pop(); // Close the popup
+                        Navigator.of(context)
+                            .pop(AppConstants.refresh); // Close the popup
                       },
                     ),
                   ),
@@ -350,31 +352,31 @@ class FullScreenModalState extends State<FullScreenModal> {
                                   color: theme.iconTheme.color,
                                 ),
                                 value: _selectedExpenseCategory,
-                                items: _expenseCategory.map((String type) {
+                                items: _expenseCategoryNames.map((String name) {
                                   return DropdownMenuItem<String>(
-                                    value: type,
-                                    child: Text(
-                                      type,
-                                      style: theme.textTheme.bodyLarge,
-                                    ),
+                                    value: name,
+                                    child: Text(name,
+                                        style: theme.textTheme.bodyLarge),
                                   );
                                 }).toList(),
-                                onChanged: (newValue) {
+                                onChanged: (selectedName) {
                                   setState(() {
-                                    _selectedExpenseCategory = newValue!;
+                                    _selectedExpenseCategory = selectedName!;
+                                    _selectedExpenseCategoryId =
+                                        _expenseCategoryMap[selectedName];
 
                                     if (_selectedExpenseCategory !=
-                                        AppConstants.expenseCategoryCustom) {
+                                        AppConstants.expenseCategoryOther) {
                                       _expenseController.text =
-                                          _selectedExpenseCategory;
+                                          _selectedExpenseCategory!;
                                     }
                                   });
                                 },
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                     labelText: 'Expense Category',
-                                    labelStyle: TextStyle(color: Colors.white),
-                                    border: OutlineInputBorder(),
-                                    focusedBorder: OutlineInputBorder(
+                                    labelStyle: theme.textTheme.labelSmall,
+                                    border: const OutlineInputBorder(),
+                                    focusedBorder: const OutlineInputBorder(
                                       borderSide: BorderSide(
                                           color: AppColors.secondary),
                                     )),
@@ -382,7 +384,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                               const SizedBox(height: 30),
                               TextFormField(
                                 enabled: _selectedExpenseCategory ==
-                                    AppConstants.expenseCategoryCustom,
+                                    AppConstants.expenseCategoryOther,
                                 controller: _expenseController,
                                 focusNode: _expenseFocusNode,
                                 decoration: InputDecoration(
@@ -409,7 +411,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                                 },
                                 validator: (value) {
                                   if (_selectedExpenseCategory ==
-                                          AppConstants.expenseCategoryCustom &&
+                                          AppConstants.expenseCategoryOther &&
                                       (value == null || value.isEmpty)) {
                                     setState(() {
                                       _isExpenseTypeValid = false;
@@ -444,11 +446,11 @@ class FullScreenModalState extends State<FullScreenModal> {
                                     _selectedTransactionType = newValue!;
                                   });
                                 },
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                     labelText: 'Transaction Type',
-                                    labelStyle: TextStyle(color: Colors.white),
-                                    border: OutlineInputBorder(),
-                                    focusedBorder: OutlineInputBorder(
+                                    labelStyle: theme.textTheme.labelSmall,
+                                    border: const OutlineInputBorder(),
+                                    focusedBorder: const OutlineInputBorder(
                                       borderSide: BorderSide(
                                           color: AppColors.secondary),
                                     )),
@@ -522,8 +524,8 @@ class FullScreenModalState extends State<FullScreenModal> {
   }
 }
 
-void openFullScreenModal(BuildContext context) {
-  Navigator.of(context).push(PageRouteBuilder(
+Future<String> openFullScreenModal(BuildContext context) async {
+  final result = await Navigator.of(context).push(PageRouteBuilder(
     pageBuilder: (context, animation, secondaryAnimation) {
       const begin = Offset(0, 1); // Start from bottom
       const end = Offset.zero; // End at the top
@@ -565,4 +567,6 @@ void openFullScreenModal(BuildContext context) {
     reverseTransitionDuration:
         const Duration(milliseconds: 800), // Duration of the reverse transition
   ));
+
+  return result ?? '';
 }

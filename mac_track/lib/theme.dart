@@ -7,7 +7,7 @@ class AppColors {
   static const Color gradientStart = Color(0xFF000000);
   static const Color gradientMiddle = Color(0xFF1A1A1A);
   static const Color gradientEnd = Color(0xFF333333);
-  static const Color primaryGreen = Colors.greenAccent;
+  static const Color primaryGreen = Color(0xFF69F0AE);
   static const Color secondaryGreen = Color(0xFF3BED97);
   static const Color filterButtonBlack = Color(0xFF1e202e);
   static const Color filterButtonWhite = Color(0xFFfbfbfb);
@@ -16,6 +16,10 @@ class AppColors {
   static const Color danger = Color(0xFFED3B3B);
   static const Color warning = Color(0xFFED9A3B);
   static const Color white = Color(0xFFFFFFFF);
+  static const Color white70 = Color(0xB3FFFFFF);
+  static const Color black87 = Color(0xDD000000);
+  static const Color transparent = Color(0x00000000);
+  static const Color purple = Color(0xFF9C27B0);
 }
 
 class AppTextStyles {
@@ -147,9 +151,11 @@ class AppTheme {
     buttonTheme: const ButtonThemeData(buttonColor: AppColors.primaryGreen),
     textTheme: TextTheme(
       displayLarge: AppTextStyles.headline.copyWith(color: Colors.black87),
+      titleLarge:
+          AppTextStyles.headline.copyWith(color: Colors.black87, fontSize: 20),
       bodyLarge: AppTextStyles.bodyText.copyWith(color: Colors.black87),
-      headlineLarge:
-          AppTextStyles.bodyText.copyWith(color: Colors.black87, fontSize: 25),
+      headlineLarge: AppTextStyles.bodyText.copyWith(
+          color: Colors.black87, fontSize: 25, fontWeight: FontWeight.bold),
       displayMedium: AppTextStyles.appBarTitle
           .copyWith(color: Colors.black87, fontWeight: FontWeight.bold),
       labelSmall: AppTextStyles.appBarTitle
@@ -183,9 +189,11 @@ class AppTheme {
     scaffoldBackgroundColor: AppColors.backgroundDark,
     textTheme: TextTheme(
       displayLarge: AppTextStyles.headline.copyWith(color: Colors.white),
+      titleLarge:
+          AppTextStyles.headline.copyWith(color: Colors.white, fontSize: 20),
       bodyLarge: AppTextStyles.bodyText.copyWith(color: Colors.white),
-      headlineLarge:
-          AppTextStyles.bodyText.copyWith(color: Colors.white, fontSize: 25),
+      headlineLarge: AppTextStyles.bodyText.copyWith(
+          color: Colors.white, fontSize: 25, fontWeight: FontWeight.bold),
       displayMedium: AppTextStyles.appBarTitle
           .copyWith(color: Colors.white, fontWeight: FontWeight.bold),
       labelSmall:

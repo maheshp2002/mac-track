@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:toggle_switch/toggle_switch.dart';
 import 'components/commonAppBar.dart';
 import 'components/fullScreenModal.dart';
+import 'components/listCard.dart';
 import 'components/navbar.dart';
 import 'components/slideInAnimation.dart';
 import 'components/themeManager.dart';
@@ -24,92 +25,164 @@ class HomePage extends StatefulWidget {
 }
 
 class HomePageState extends State<HomePage> {
-  int _currentIndex = 0;
-  late Stream<Map<String, dynamic>> expenseDataStream;
+  int _currentToggleIndex = 0;
+  late Stream<Map<String, dynamic>> expenseDataStream = Stream.value({});
   late Stream<Map<String, dynamic>> bankDataStream;
   late Stream<Map<String, dynamic>> userBankDataStream;
+  late Stream<Map<String, dynamic>> expenseTypesStream;
   late Stream<Map<String, dynamic>> salaryDataStream = Stream.value({});
   List<Map<String, dynamic>> userBanks = [];
   String? selectedBankId;
+  String userEmail = "";
+  String currentBalance = "";
+  String? _selectedFilterType;
 
   @override
   void initState() {
     super.initState();
+    User? user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      setState(() {
+        userEmail = user.email ?? "";
+      });
+    }
+
     _initializeUser();
+    expenseTypesStream = FirebaseService().streamExpenseTypes();
   }
 
   void _initializeUser() async {
     bankDataStream = FirebaseService().streamBankData();
-    User? user = FirebaseAuth.instance.currentUser;
 
-    if (user != null) {
-      userBankDataStream = FirebaseService()
-          .streamGetAllData(user.email!, FirebaseConstants.userBankCollection);
+    userBankDataStream = FirebaseService()
+        .streamGetAllData(userEmail, FirebaseConstants.userBankCollection);
 
-      userBankDataStream.listen((userBankData) async {
-        // Fetch all banks from the master collection
-        Map<String, dynamic> masterBanks = await bankDataStream.first;
+    userBankDataStream.listen((userBankData) async {
+      // Fetch all banks from the master collection
+      Map<String, dynamic> masterBanks = await bankDataStream.first;
 
-        List<Map<String, dynamic>> updatedUserBanks = [];
-        String? primaryBankId;
+      List<Map<String, dynamic>> updatedUserBanks = [];
+      String? primaryBankId;
 
-        userBankData.entries.forEach((entry) {
-          final bankId = entry.value['bankId'];
-          final isPrimary = entry.value['isPrimary'];
-          final bankDetails = masterBanks[bankId];
+      userBankData.entries.forEach((entry) {
+        final bankId = entry.value['bankId'];
+        final isPrimary = entry.value['isPrimary'];
+        final bankDetails = masterBanks[bankId];
 
-          if (bankDetails != null) {
-            updatedUserBanks.add({
-              'id': bankId,
-              'name': bankDetails['name'],
-              'image': bankDetails['image'],
-              'isPrimary': isPrimary,
-            });
+        if (bankDetails != null) {
+          updatedUserBanks.add({
+            'id': bankId,
+            'name': bankDetails['name'],
+            'image': bankDetails['image'],
+            'isPrimary': isPrimary,
+          });
 
-            // Identify the primary bank ID
-            if (isPrimary == true) {
-              primaryBankId = bankId;
-            }
+          // Identify the primary bank ID
+          if (isPrimary == true) {
+            primaryBankId = bankId;
           }
+        }
+      });
+
+      // Add the default option to add a new bank
+      updatedUserBanks.add({
+        'id': 'add',
+        'name': AppConstants.addNewBankLabel,
+        'image': '',
+        'isPrimary': false
+      });
+
+      setState(() {
+        userBanks = updatedUserBanks;
+
+        // If there is a primary bank, change it
+        if (primaryBankId != null && primaryBankId!.isNotEmpty) {
+          _changeBank(primaryBankId!);
+        }
+      });
+    });
+  }
+
+  void _updateSalaryStream() async {
+    final email = FirebaseAuth.instance.currentUser!.email!;
+    final stream = FirebaseService().streamGetAllData(
+      email,
+      FirebaseConstants.salaryCollection,
+    );
+
+    if (_currentToggleIndex != 0) {
+      // Balance view – only show latest salary and its expenses
+      stream.first.then((data) {
+        final filtered = data.values
+            .where((doc) => doc['bankId'] == selectedBankId)
+            .toList();
+
+        filtered.sort((a, b) {
+          final aTime = a['timestamp']?.toDate();
+          final bTime = b['timestamp']?.toDate();
+          return bTime.compareTo(aTime);
         });
 
-        // Add the default option to add a new bank
-        updatedUserBanks.add({
-          'id': 'add',
-          'name': AppConstants.addNewBankLabel,
-          'image': '',
-          'isPrimary': false
-        });
+        final latestSalary = filtered.isNotEmpty ? filtered.first : null;
+
+        if (latestSalary != null) {
+          final latestSalaryId = data.entries
+              .firstWhere((entry) => entry.value == latestSalary)
+              .key;
+
+          _updateExpenseStream(selectedBankId!, latestSalaryId);
+          // Update salaryDataStream for UI
+          salaryDataStream = Stream.value(latestSalary);
+        } else {
+          // fallback
+          salaryDataStream = Stream.value({});
+        }
+        setState(() {});
+      });
+    } else {
+      // Transaction view – show all salaries + all expenses
+      salaryDataStream = stream.map((data) {
+        final filtered = data.values
+            .where((doc) => doc['bankId'] == selectedBankId)
+            .toList();
+
+        double totalSalary = 0;
+        for (var entry in filtered) {
+          totalSalary += (entry['currentAmount'] ?? 0.0);
+        }
 
         setState(() {
-          userBanks = updatedUserBanks;
-
-          // If there is a primary bank, change it
-          if (primaryBankId != null && primaryBankId!.isNotEmpty) {
-            _changeBank(primaryBankId!);
-          }
+          currentBalance = NumberFormat.currency(
+            locale: 'en_IN',
+            symbol: '₹',
+            decimalDigits: 0,
+          ).format(totalSalary);
         });
+
+        _updateExpenseStream(selectedBankId!);
+        return {};
       });
     }
   }
 
-  void _updateSalaryStream() {
-    if (selectedBankId != null) {
-      salaryDataStream = FirebaseService()
-          .streamGetAllData(FirebaseAuth.instance.currentUser!.email!,
-              FirebaseConstants.salaryCollection)
-          .map((salaryData) {
-        final filteredSalaries = salaryData.values
-            .where((doc) => doc['bankId'] == selectedBankId)
-            .toList();
-        filteredSalaries.sort((a, b) {
-          final timestampA = a['timestamp'] as Timestamp;
-          final timestampB = b['timestamp'] as Timestamp;
-          return timestampB.compareTo(timestampA);
-        });
-        return filteredSalaries.isNotEmpty ? filteredSalaries.first : {};
-      });
-    }
+  void _updateExpenseStream(String bankId, [String? salaryId]) {
+    expenseDataStream = FirebaseService()
+        .streamGetAllData(userEmail, FirebaseConstants.expenseCollection)
+        .map((expenseData) {
+      final filteredExpenses = expenseData.entries
+          .where((entry) {
+            final data = entry.value;
+            final matchesBank = data['bankId'] == bankId;
+            final matchesSalary =
+                salaryId == null || data['salaryDocumentId'] == salaryId;
+            return matchesBank && matchesSalary;
+          })
+          .map((e) => MapEntry(e.key, e.value))
+          .toList();
+
+      return Map.fromEntries(filteredExpenses);
+    });
   }
 
   void _changeBank(String bankId) {
@@ -261,12 +334,16 @@ class HomePageState extends State<HomePage> {
                       FontAwesomeIcons.ellipsis,
                       color: Colors.white,
                     ),
-                    onPressed: () {
-                      showDialog(
+                    onPressed: () async {
+                      final result = await showDialog(
                         context: context,
                         builder: (BuildContext context) =>
                             const AddSalaryDialog(),
                       );
+
+                      if (result == AppConstants.refresh) {
+                        _updateSalaryStream();
+                      }
                     },
                   ),
                 ),
@@ -287,6 +364,11 @@ class HomePageState extends State<HomePage> {
     );
   }
 
+  String formatTimestamp(Timestamp timestamp) {
+    final date = timestamp.toDate();
+    return DateFormat('dd MMM yyyy').format(date);
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeManager = Provider.of<ThemeManager>(context);
@@ -301,8 +383,12 @@ class HomePageState extends State<HomePage> {
         title: 'MacTrack',
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          openFullScreenModal(context);
+        onPressed: () async {
+          String result = await openFullScreenModal(context);
+
+          if (result == AppConstants.refresh) {
+            _updateSalaryStream();
+          }
         },
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16.0),
@@ -315,168 +401,346 @@ class HomePageState extends State<HomePage> {
       ),
       drawer: const NavBar(),
       body: Container(
-        decoration: AppTheme.getBackgroundDecoration(themeMode),
-        padding: const EdgeInsets.only(top: kToolbarHeight + 50),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              SlideInAnimation(
-                delay: const Duration(milliseconds: 150),
-                startPosition: -1.0,
-                endPosition: 0.0,
-                child: Center(
-                  child: ToggleSwitch(
-                    minWidth: 100.0,
-                    cornerRadius: 20.0,
-                    activeBgColors: [
-                      [customTheme.toggleButtonFillColor],
-                      [customTheme.toggleButtonFillColor],
-                    ],
-                    activeFgColor: customTheme.toggleButtonSelectedColor,
-                    inactiveBgColor: customTheme.toggleButtonBackgroundColor,
-                    inactiveFgColor: customTheme.toggleButtonTextColor,
-                    initialLabelIndex: _currentIndex,
-                    totalSwitches: 2,
-                    labels: _currentIndex == 0
-                        ? ['Balance', '']
-                        : ['', 'Transaction'],
-                    customIcons: [
-                      _currentIndex == 0
-                          ? null
-                          : Icon(
-                              FontAwesomeIcons.indianRupeeSign,
-                              color: iconColor,
-                              size: 20,
+          decoration: AppTheme.getBackgroundDecoration(themeMode),
+          padding: const EdgeInsets.only(top: kToolbarHeight + 50),
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  SlideInAnimation(
+                    delay: const Duration(milliseconds: 150),
+                    startPosition: -1.0,
+                    endPosition: 0.0,
+                    child: Center(
+                      child: ToggleSwitch(
+                        minWidth: 100.0,
+                        cornerRadius: 20.0,
+                        activeBgColors: [
+                          [customTheme.toggleButtonFillColor],
+                          [customTheme.toggleButtonFillColor],
+                        ],
+                        activeFgColor: customTheme.toggleButtonSelectedColor,
+                        inactiveBgColor:
+                            customTheme.toggleButtonBackgroundColor,
+                        inactiveFgColor: customTheme.toggleButtonTextColor,
+                        initialLabelIndex: _currentToggleIndex,
+                        totalSwitches: 2,
+                        labels: _currentToggleIndex == 0
+                            ? ['Transaction', '']
+                            : ['', 'Balance'],
+                        customIcons: [
+                          _currentToggleIndex == 0
+                              ? null
+                              : Icon(
+                                  FontAwesomeIcons.rightLeft,
+                                  color: iconColor,
+                                  size: 20,
+                                ),
+                          _currentToggleIndex == 1
+                              ? null
+                              : Icon(
+                                  FontAwesomeIcons.indianRupeeSign,
+                                  color: iconColor,
+                                  size: 20,
+                                ),
+                        ],
+                        radiusStyle: true,
+                        onToggle: (index) {
+                          setState(() {
+                            _currentToggleIndex = index!;
+                            _updateSalaryStream();
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                  StreamBuilder<Map<String, dynamic>>(
+                    stream: bankDataStream,
+                    builder: (context, bankSnapshot) {
+                      if (bankSnapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.secondaryGreen,
+                          ),
+                        );
+                      } else if (bankSnapshot.hasError) {
+                        return Center(
+                          child: Text(
+                            "An Error Occurred",
+                            style: theme.textTheme.bodyLarge,
+                          ),
+                        );
+                      } else if (!bankSnapshot.hasData ||
+                          bankSnapshot.data!.isEmpty) {
+                        return Center(
+                          child: Text(
+                            "No bank data available.",
+                            style: theme.textTheme.bodyLarge,
+                          ),
+                        );
+                      } else {
+                        return Column(
+                          children: [
+                            if (_currentToggleIndex == 0)
+                              StreamBuilder<Map<String, dynamic>>(
+                                stream: salaryDataStream,
+                                builder: (context, snapshot) {
+                                  return _buildSalaryWidget(
+                                      currentBalance, theme);
+                                },
+                              )
+                            else
+                              StreamBuilder<Map<String, dynamic>>(
+                                stream: salaryDataStream,
+                                builder: (context, salarySnapshot) {
+                                  if (salarySnapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(
+                                        color: AppColors.secondaryGreen,
+                                      ),
+                                    );
+                                  } else if (salarySnapshot.hasError) {
+                                    return Center(
+                                      child: Text(
+                                        "An Error Occurred",
+                                        style: theme.textTheme.bodyLarge,
+                                      ),
+                                    );
+                                  } else if (!salarySnapshot.hasData ||
+                                      salarySnapshot.data!.isEmpty) {
+                                    return _buildSalaryWidget('₹0', theme);
+                                  } else {
+                                    final latestSalaryDoc =
+                                        salarySnapshot.data!;
+                                    final latestSalaryAmount =
+                                        latestSalaryDoc['currentAmount'];
+
+                                    final formattedSalaryAmount =
+                                        NumberFormat.currency(
+                                      locale: 'en_IN',
+                                      symbol: '₹',
+                                      decimalDigits: 0,
+                                    ).format(latestSalaryAmount);
+
+                                    return _buildSalaryWidget(
+                                        formattedSalaryAmount, theme);
+                                  }
+                                },
+                              ),
+                            const SizedBox(height: 10),
+                            SlideInAnimation(
+                              delay: const Duration(milliseconds: 100),
+                              startPosition: -0.5,
+                              endPosition: 0.0,
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final containerWidth =
+                                      (constraints.maxWidth - 32) /
+                                          3; // subtracting total spacing
+
+                                  return Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      SizedBox(
+                                        width: containerWidth,
+                                        child: FilterContainer(
+                                          icon: FeatherIcons.arrowDownLeft,
+                                          text: AppConstants
+                                              .transactionTypeDeposit,
+                                          color: _selectedFilterType ==
+                                                      AppConstants
+                                                          .transactionTypeDeposit ||
+                                                  _selectedFilterType == null
+                                              ? AppColors.filterButtonBlack
+                                              : const Color(0xFF595A69),
+                                          onTap: () {
+                                            if (_selectedFilterType ==
+                                                AppConstants
+                                                    .transactionTypeDeposit) {
+                                              setState(() {
+                                                _selectedFilterType = null;
+                                              });
+                                            } else {
+                                              setState(() {
+                                                _selectedFilterType =
+                                                    AppConstants
+                                                        .transactionTypeDeposit;
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: containerWidth,
+                                        child: FilterContainer(
+                                          icon: FeatherIcons.arrowUpRight,
+                                          text: AppConstants
+                                              .transactionTypeWithdraw,
+                                          color: _selectedFilterType ==
+                                                      AppConstants
+                                                          .transactionTypeWithdraw ||
+                                                  _selectedFilterType == null
+                                              ? AppColors.purple
+                                              : const Color(0xFFA783AE),
+                                          onTap: () {
+                                            if (_selectedFilterType ==
+                                                AppConstants
+                                                    .transactionTypeWithdraw) {
+                                              setState(() {
+                                                _selectedFilterType = null;
+                                              });
+                                            } else {
+                                              setState(() {
+                                                _selectedFilterType =
+                                                    AppConstants
+                                                        .transactionTypeWithdraw;
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: containerWidth,
+                                        child: FilterContainer(
+                                          icon: FeatherIcons.arrowUp,
+                                          text: AppConstants
+                                              .transactionTypeTransfer,
+                                          color: _selectedFilterType ==
+                                                      AppConstants
+                                                          .transactionTypeTransfer ||
+                                                  _selectedFilterType == null
+                                              ? AppColors.filterButtonGreen
+                                              : const Color(0xFF82B387),
+                                          onTap: () {
+                                            if (_selectedFilterType ==
+                                                AppConstants
+                                                    .transactionTypeTransfer) {
+                                              setState(() {
+                                                _selectedFilterType = null;
+                                              });
+                                            } else {
+                                              setState(() {
+                                                _selectedFilterType =
+                                                    AppConstants
+                                                        .transactionTypeTransfer;
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
                             ),
-                      _currentIndex == 1
-                          ? null
-                          : Icon(
-                              FontAwesomeIcons.rightLeft,
-                              color: iconColor,
-                              size: 20,
+                            const SizedBox(
+                              height: 20,
                             ),
-                    ],
-                    radiusStyle: true,
-                    onToggle: (index) {
-                      setState(() {
-                        _currentIndex = index!;
-                      });
+                            Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  "Transactions",
+                                  style: theme.textTheme.headlineLarge,
+                                  textAlign: TextAlign.start,
+                                )),
+                          ],
+                        );
+                      }
                     },
                   ),
-                ),
+                ],
               ),
-              StreamBuilder<Map<String, dynamic>>(
-                stream: bankDataStream,
-                builder: (context, bankSnapshot) {
-                  if (bankSnapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.secondaryGreen,
-                      ),
-                    );
-                  } else if (bankSnapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        "An Error Occurred",
-                        style: theme.textTheme.bodyLarge,
-                      ),
-                    );
-                  } else if (!bankSnapshot.hasData ||
-                      bankSnapshot.data!.isEmpty) {
-                    return Center(
-                      child: Text(
-                        "No bank data available.",
-                        style: theme.textTheme.bodyLarge,
-                      ),
-                    );
-                  } else {
-                    return Column(
-                      children: [
-                        StreamBuilder<Map<String, dynamic>>(
-                          stream: salaryDataStream,
-                          builder: (context, salarySnapshot) {
-                            if (salarySnapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColors.secondaryGreen,
-                                ),
-                              );
-                            } else if (salarySnapshot.hasError) {
-                              return Center(
-                                child: Text(
-                                  "An Error Occurred",
-                                  style: theme.textTheme.bodyLarge,
-                                ),
-                              );
-                            } else if (!salarySnapshot.hasData ||
-                                salarySnapshot.data!.isEmpty) {
-                              return _buildSalaryWidget('₹0', theme);
-                            } else {
-                              final latestSalaryDoc = salarySnapshot.data!;
-                              final latestSalaryAmount =
-                                  latestSalaryDoc['currentAmount'];
+            ),
+            Flexible(
+                fit: FlexFit.loose,
+                child: SlideInAnimation(
+                  delay: const Duration(milliseconds: 100),
+                  startPosition: -0.5,
+                  endPosition: 0.0,
+                  child: StreamBuilder<Map<String, dynamic>>(
+                    stream: expenseDataStream,
+                    builder: (context, expenseSnapshot) {
+                      if (!expenseSnapshot.hasData) {
+                        return const CircularProgressIndicator(
+                          color: AppColors.secondaryGreen,
+                        );
+                      }
 
-                              final formattedSalaryAmount =
-                                  NumberFormat.currency(
-                                locale: 'en_IN',
-                                symbol: '₹',
-                                decimalDigits: 0,
-                              ).format(latestSalaryAmount);
+                      final expenseData = expenseSnapshot.data!;
 
-                              return _buildSalaryWidget(
-                                  formattedSalaryAmount, theme);
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 10),
-                        SlideInAnimation(
-                          delay: const Duration(milliseconds: 100),
-                          startPosition: -0.5,
-                          endPosition: 0.0,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              FilterContainer(
-                                icon: FeatherIcons.arrowDownLeft,
-                                text: "Deposit",
-                                color: AppColors.filterButtonBlack,
-                                onTap: () {
-                                  // Handle the tap event here
-                                  print('InkWell tapped!');
-                                },
-                              ),
-                              FilterContainer(
-                                icon: FeatherIcons.arrowUpRight,
-                                text: "Withdraw",
-                                color: Colors.purple,
-                                onTap: () {
-                                  // Handle the tap event here
-                                  print('InkWell tapped!');
-                                },
-                              ),
-                              FilterContainer(
-                                icon: FeatherIcons.arrowUp,
-                                text: "Transfer",
-                                color: AppColors.filterButtonGreen,
-                                onTap: () {
-                                  // Handle the tap event here
-                                  print('InkWell tapped!');
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
+                      return StreamBuilder<Map<String, dynamic>>(
+                        stream: expenseTypesStream,
+                        builder: (context, typeSnapshot) {
+                          if (!typeSnapshot.hasData) {
+                            return const SizedBox();
+                          }
+
+                          final expenseTypes = typeSnapshot.data!;
+
+                          return ListView(
+                            padding: EdgeInsets.zero,
+                            children: (expenseData.entries.where((entry) {
+                              if (_selectedFilterType == null) return true;
+                              return entry.value['transactionType'] ==
+                                  _selectedFilterType;
+                            }).toList()
+                                  ..sort((a, b) {
+                                    final tsA =
+                                        a.value['timestamp'] as Timestamp;
+                                    final tsB =
+                                        b.value['timestamp'] as Timestamp;
+                                    return tsB.compareTo(tsA); // Newest first
+                                  }))
+                                .map((entry) {
+                              final expense = entry.value;
+                              final categoryId = expense['expenseCategory'];
+                              final categoryInfo = expenseTypes[categoryId];
+                              final categoryImage = categoryInfo?['image'] ??
+                                  'assets/images/other-expenses.png';
+
+                              return ListCard(
+                                image: categoryImage,
+                                title: expense['expense'] ?? '',
+                                subTitle: Row(children: [
+                                  Text(
+                                    expense['transactionType'] ?? '',
+                                    style: theme.textTheme.bodyLarge,
+                                  ),
+                                  expense['transactionType'] ==
+                                          AppConstants.transactionTypeDeposit
+                                      ? const Icon(FeatherIcons.arrowDownLeft,
+                                          color: AppColors.filterButtonGreen)
+                                      : expense['transactionType'] ==
+                                              AppConstants
+                                                  .transactionTypeWithdraw
+                                          ? const Icon(
+                                              FeatherIcons.arrowUpRight,
+                                              color: AppColors.danger)
+                                          : const Icon(FeatherIcons.arrowUp,
+                                              color: AppColors.danger)
+                                ]),
+                                suffix: '₹${expense['amount']}',
+                                footer: Text(
+                                    formatTimestamp(expense['timestamp']),
+                                    style: TextStyle(
+                                        fontSize: theme
+                                            .textTheme.labelSmall?.fontSize,
+                                        color: themeMode == ThemeMode.dark
+                                            ? AppColors.white70
+                                            : AppColors.black87)),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                )),
+          ])),
     );
   }
 }
@@ -497,37 +761,42 @@ class FilterContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    final splashColor = Color.lerp(color, Colors.white, 0.6)!;
+
+    return Material(
+      color: color,
+      borderRadius: BorderRadius.circular(30.0),
+      child: InkWell(
         onTap: onTap,
+        splashColor: splashColor,
+        highlightColor: splashColor.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(30.0),
         child: Container(
-          width: 105,
-          height: 105,
-          padding: const EdgeInsets.fromLTRB(15, 15, 10, 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30.0),
-            color: color,
-          ),
+          width: 120,
+          height: 110,
+          padding: const EdgeInsets.all(15), // <-- Back in business
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment:
+                MainAxisAlignment.spaceBetween, // <-- for balance
             children: [
-              SizedBox(
-                  height: 0.5 * 100,
-                  child: Align(
-                      alignment: Alignment.topLeft,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.backgroundLight,
-                            width: 2,
-                          ),
-                        ),
-                        child: Icon(
-                          icon,
-                          color: AppColors.backgroundLight,
-                          size: 20, // Adjust icon size as needed
-                        ),
-                      ))),
+              Align(
+                alignment: Alignment.topLeft,
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.backgroundLight,
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: AppColors.backgroundLight,
+                    size: 20,
+                  ),
+                ),
+              ),
               Text(
                 text,
                 style: const TextStyle(
@@ -537,7 +806,9 @@ class FilterContainer extends StatelessWidget {
               ),
             ],
           ),
-        ));
+        ),
+      ),
+    );
   }
 }
 
@@ -598,7 +869,7 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
           FirebaseConstants.salaryCollection);
 
       // Optionally close the modal after submitting
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(AppConstants.refresh);
     } else {
       if (_selectedBankId == null) {
         showToast('Please select a bank.');
