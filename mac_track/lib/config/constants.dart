@@ -16,5 +16,15 @@ class FirebaseConstants {
   static const String mastersCollection = 'masters';
   static const String usersCollection = 'users';
   static const String expenseTypesCollection = 'expenseTypes';
+
   //Firebase Fields
+  static const String amountField = 'amount';
+  static const String documentIdField = 'documentId';
+  static const String currentAmountField = 'currentAmount';
+  static const String bankIdField = 'bankId';
+  static const String expenseField = 'expense';
+  static const String salaryDocumentIdField = 'salaryDocumentId';
+  static const String timestampField = 'timestamp';
+  static const String expenseCategoryField = 'expenseCategory';
+  static const String transactionTypeField = 'transactionType';
 }

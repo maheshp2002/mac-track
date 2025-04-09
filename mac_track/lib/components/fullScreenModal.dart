@@ -8,7 +8,9 @@ import '../services/firebaseService.dart';
 import '../theme.dart';
 
 class FullScreenModal extends StatefulWidget {
-  const FullScreenModal({super.key});
+  final Map<String, dynamic>? expense;
+  final String? expenseId;
+  FullScreenModal({super.key, required this.expense, required this.expenseId});
 
   @override
   FullScreenModalState createState() => FullScreenModalState();
@@ -28,6 +30,7 @@ class FullScreenModalState extends State<FullScreenModal> {
   String? _selectedBankId; // Store the selected bank's document ID
   bool _isAmountValid = true;
   bool _isExpenseTypeValid = true;
+  bool _isFormChanged = false;
 
   // Dropdown related variables
   String _selectedTransactionType = AppConstants.transactionTypeWithdraw;
@@ -77,8 +80,35 @@ class FullScreenModalState extends State<FullScreenModal> {
         if (categoryNames.isNotEmpty) {
           _selectedExpenseCategory = categoryNames.first;
           _selectedExpenseCategoryId = categoryMap[categoryNames.first];
+          _expenseController.text = categoryNames.first;
         }
       });
+
+      // Move setModalData() here
+      if (widget.expense != null && widget.expenseId != null) {
+        setModalData();
+      }
+    });
+  }
+
+  void setModalData() {
+    setState(() {
+      _amountController.text =
+          widget.expense?[FirebaseConstants.amountField].toString() ?? '';
+      _expenseController.text =
+          widget.expense?[FirebaseConstants.expenseField] ?? '';
+      _selectedBankId = widget.expense?[FirebaseConstants.bankIdField];
+      _selectedTransactionType =
+          widget.expense?[FirebaseConstants.transactionTypeField];
+      _selectedExpenseCategoryId =
+          widget.expense?[FirebaseConstants.expenseCategoryField];
+
+      final selectedCategoryId =
+          widget.expense?[FirebaseConstants.expenseCategoryField];
+      _selectedExpenseCategory = _expenseCategoryMap.entries
+          .firstWhere((entry) => entry.value == selectedCategoryId,
+              orElse: () => const MapEntry('', ''))
+          .key;
     });
   }
 
@@ -95,7 +125,7 @@ class FullScreenModalState extends State<FullScreenModal> {
         List<Map<String, dynamic>> updatedUserBanks = [];
 
         userBankData.entries.forEach((entry) {
-          final bankId = entry.value['bankId'];
+          final bankId = entry.value[FirebaseConstants.bankIdField];
           final isPrimary = entry.value['isPrimary'];
           final bankDetails = masterBanks[bankId];
 
@@ -125,28 +155,30 @@ class FullScreenModalState extends State<FullScreenModal> {
 
     // Filter the salary data by bankId
     final filteredSalaries = salarySnapshot.entries
-        .where((entry) => entry.value['bankId'] == selectedBankId)
+        .where((entry) =>
+            entry.value[FirebaseConstants.bankIdField] == selectedBankId)
         .toList();
 
     // Sort the filtered salaries by timestamp in descending order
     filteredSalaries.sort((a, b) {
-      final timestampA = a.value['timestamp'] as Timestamp;
-      final timestampB = b.value['timestamp'] as Timestamp;
+      final timestampA = a.value[FirebaseConstants.timestampField] as Timestamp;
+      final timestampB = b.value[FirebaseConstants.timestampField] as Timestamp;
       return timestampB.compareTo(timestampA); // latest first
     });
 
     // Get the latest salary document and its currentAmount
     if (filteredSalaries.isNotEmpty) {
       final latestSalaryDoc = filteredSalaries.first;
-      final currentAmount = latestSalaryDoc.value['currentAmount'] as double;
+      final currentAmount =
+          latestSalaryDoc.value[FirebaseConstants.currentAmountField] as double;
       return {
-        'documentId': latestSalaryDoc.key,
-        'currentAmount': currentAmount,
+        FirebaseConstants.documentIdField: latestSalaryDoc.key,
+        FirebaseConstants.currentAmountField: currentAmount,
       };
     } else {
       return {
-        'documentId': '',
-        'currentAmount': 0.0,
+        FirebaseConstants.documentIdField: '',
+        FirebaseConstants.currentAmountField: 0.0,
       };
     }
   }
@@ -154,7 +186,9 @@ class FullScreenModalState extends State<FullScreenModal> {
   Future<void> _submit() async {
     if (_formKey.currentState!.validate() && _selectedBankId != null) {
       double amount = double.parse(_amountController.text);
-      final expenseType = _expenseController.text;
+      final expenseType = _expenseController.text.isNotEmpty
+          ? _expenseController.text
+          : _selectedExpenseCategory;
 
       // Get the signed-in user's email
       User? user = FirebaseAuth.instance.currentUser;
@@ -164,17 +198,53 @@ class FullScreenModalState extends State<FullScreenModal> {
       }
       String userEmail = user.email ?? "";
 
-      // Get the latest salary document ID and its current amount
-      Map<String, dynamic> latestSalaryData =
-          await _getLatestSalaryData(_selectedBankId);
+      final isEditMode = widget.expenseId != null && widget.expense != null;
 
-      String latestSalaryDocumentId = latestSalaryData['documentId'];
-      double currentAmount = latestSalaryData['currentAmount'];
+      String salaryDocumentId;
+      double currentAmount;
+
+      if (isEditMode) {
+        // Get salary document used in the previous expense
+        salaryDocumentId =
+            widget.expense![FirebaseConstants.salaryDocumentIdField];
+
+        final salaryDoc = await FirebaseService()
+            .streamGetDataInUserById(
+              userEmail,
+              FirebaseConstants.salaryCollection,
+              salaryDocumentId,
+            )
+            .first;
+
+        currentAmount =
+            salaryDoc[FirebaseConstants.currentAmountField] as double;
+
+        // Restore previous expense impact before applying new one
+        double previousAmount =
+            widget.expense![FirebaseConstants.amountField] as double;
+        String previousTransactionType =
+            widget.expense![FirebaseConstants.transactionTypeField];
+
+        if (previousTransactionType == AppConstants.transactionTypeWithdraw ||
+            previousTransactionType == AppConstants.transactionTypeTransfer) {
+          currentAmount += previousAmount; // refund
+        } else if (previousTransactionType ==
+            AppConstants.transactionTypeDeposit) {
+          currentAmount -= previousAmount; // deduct deposit
+        }
+      } else {
+        // Get the latest salary document for new expense
+        Map<String, dynamic> latestSalaryData =
+            await _getLatestSalaryData(_selectedBankId);
+
+        salaryDocumentId = latestSalaryData[FirebaseConstants.documentIdField];
+        currentAmount = latestSalaryData[FirebaseConstants.currentAmountField];
+      }
+
+      // Apply new transaction impact on salary (common for both edit and add)
       double updatedAmount = currentAmount;
-
       if (_selectedTransactionType == AppConstants.transactionTypeWithdraw ||
           _selectedTransactionType == AppConstants.transactionTypeTransfer) {
-        // Withdraw/Transfer → Deduct
         if (currentAmount < amount) {
           showToast('Insufficient balance in salary.');
           return;
@@ -182,45 +252,75 @@ class FullScreenModalState extends State<FullScreenModal> {
         updatedAmount -= amount;
       } else if (_selectedTransactionType ==
           AppConstants.transactionTypeDeposit) {
-        // Deposit → Add
         updatedAmount += amount;
       }
 
-      // Generate a unique document ID using date, time, and amount
-      DateTime now = DateTime.now();
-      String documentId = "${now.toIso8601String()}_$amount";
+      // Use existing document ID in edit mode
+      final documentId = isEditMode
+          ? widget.expenseId!
+          : "${DateTime.now().toIso8601String()}_$amount";
 
       // Prepare the data to be stored
       Map<String, dynamic> expenseData = {
-        'amount': amount,
-        'bankId': _selectedBankId, // Store the selected bank's document ID
-        'expense': expenseType,
-        'transactionType': _selectedTransactionType,
-        'expenseCategory': _selectedExpenseCategoryId ??
+        FirebaseConstants.amountField: amount,
+        FirebaseConstants.bankIdField: _selectedBankId,
+        FirebaseConstants.expenseField: expenseType,
+        FirebaseConstants.transactionTypeField: _selectedTransactionType,
+        FirebaseConstants.expenseCategoryField: _selectedExpenseCategoryId ??
             _selectedExpenseCategory?.toLowerCase(),
-        'timestamp': now,
-        'salaryDocumentId':
-            latestSalaryDocumentId, // Store the document ID of the latest salary
+        FirebaseConstants.timestampField: DateTime.now(),
+        FirebaseConstants.salaryDocumentIdField: salaryDocumentId,
       };
 
-      // Update the current amount in the salary document
+      // ✅ Update the salary document amount
       await FirebaseService().updateSalaryAmount(
-        user.email,
-        latestSalaryDocumentId,
+        userEmail,
+        salaryDocumentId,
         updatedAmount,
       );
 
-      // Save the expense data to Firebase
-      await FirebaseService().addData(userEmail, documentId, expenseData,
-          FirebaseConstants.expenseCollection);
+      // Add or update expense document
+      if (isEditMode) {
+        await FirebaseService().updatedExpenseData(
+          userEmail,
+          documentId,
+          expenseData,
+          FirebaseConstants.expenseCollection,
+        );
+      } else {
+        await FirebaseService().addData(
+          userEmail,
+          documentId,
+          expenseData,
+          FirebaseConstants.expenseCollection,
+        );
+      }
 
-      // Optionally close the modal after submitting
       Navigator.of(context).pop(AppConstants.refresh);
     } else {
       if (_selectedBankId == null) {
         showToast('Please select a bank.');
       }
     }
+  }
+
+  void checkFormChanged() {
+    final original = widget.expense;
+
+    final isChanged = (_amountController.text !=
+            (original?[FirebaseConstants.amountField]?.toString() ?? '')) ||
+        (_expenseController.text !=
+            (original?[FirebaseConstants.expenseField] ?? '')) ||
+        (_selectedTransactionType !=
+            (original?[FirebaseConstants.transactionTypeField] ??
+                AppConstants.transactionTypeWithdraw)) ||
+        (_selectedBankId != (original?[FirebaseConstants.bankIdField])) ||
+        (_selectedExpenseCategoryId !=
+            (original?[FirebaseConstants.expenseCategoryField]));
+
+    setState(() {
+      _isFormChanged = isChanged;
+    });
   }
 
   @override
@@ -323,6 +423,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                                 cursorColor: AppColors.secondary,
                                 onChanged: (value) {
                                   _formKey.currentState?.validate();
+                                  checkFormChanged();
                                 },
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
@@ -371,6 +472,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                                           _selectedExpenseCategory!;
                                     }
                                   });
+                                  checkFormChanged();
                                 },
                                 decoration: InputDecoration(
                                     labelText: 'Expense Category',
@@ -408,6 +510,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                                 cursorColor: AppColors.secondary,
                                 onChanged: (value) {
                                   _formKey.currentState?.validate();
+                                  checkFormChanged();
                                 },
                                 validator: (value) {
                                   if (_selectedExpenseCategory ==
@@ -445,6 +548,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                                   setState(() {
                                     _selectedTransactionType = newValue!;
                                   });
+                                  checkFormChanged();
                                 },
                                 decoration: InputDecoration(
                                     labelText: 'Transaction Type',
@@ -506,7 +610,10 @@ class FullScreenModalState extends State<FullScreenModal> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: ElevatedButton(
-                      onPressed: _submit,
+                      onPressed: (_formKey.currentState?.validate() ?? false) &&
+                              _isFormChanged
+                          ? _submit
+                          : null,
                       style: ButtonStyle(
                         backgroundColor:
                             WidgetStateProperty.all(AppColors.secondaryGreen),
@@ -524,7 +631,8 @@ class FullScreenModalState extends State<FullScreenModal> {
   }
 }
 
-Future<String> openFullScreenModal(BuildContext context) async {
+Future<String> openFullScreenModal(BuildContext context, String? expenseId,
+    Map<String, dynamic>? expense) async {
   final result = await Navigator.of(context).push(PageRouteBuilder(
     pageBuilder: (context, animation, secondaryAnimation) {
       const begin = Offset(0, 1); // Start from bottom
@@ -541,7 +649,7 @@ Future<String> openFullScreenModal(BuildContext context) async {
 
       return SlideTransition(
         position: offsetAnimation,
-        child: FullScreenModal(),
+        child: FullScreenModal(expense: expense, expenseId: expenseId),
       );
     },
     transitionsBuilder: (context, animation, secondaryAnimation, child) {

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:mac_track/config/constants.dart';
 import 'package:provider/provider.dart';
@@ -66,7 +67,7 @@ class HomePageState extends State<HomePage> {
       String? primaryBankId;
 
       userBankData.entries.forEach((entry) {
-        final bankId = entry.value['bankId'];
+        final bankId = entry.value[FirebaseConstants.bankIdField];
         final isPrimary = entry.value['isPrimary'];
         final bankDetails = masterBanks[bankId];
 
@@ -115,12 +116,13 @@ class HomePageState extends State<HomePage> {
       // Balance view – only show latest salary and its expenses
       stream.first.then((data) {
         final filtered = data.values
-            .where((doc) => doc['bankId'] == selectedBankId)
+            .where(
+                (doc) => doc[FirebaseConstants.bankIdField] == selectedBankId)
             .toList();
 
         filtered.sort((a, b) {
-          final aTime = a['timestamp']?.toDate();
-          final bTime = b['timestamp']?.toDate();
+          final aTime = a[FirebaseConstants.timestampField]?.toDate();
+          final bTime = b[FirebaseConstants.timestampField]?.toDate();
           return bTime.compareTo(aTime);
         });
 
@@ -144,12 +146,13 @@ class HomePageState extends State<HomePage> {
       // Transaction view – show all salaries + all expenses
       salaryDataStream = stream.map((data) {
         final filtered = data.values
-            .where((doc) => doc['bankId'] == selectedBankId)
+            .where(
+                (doc) => doc[FirebaseConstants.bankIdField] == selectedBankId)
             .toList();
 
         double totalSalary = 0;
         for (var entry in filtered) {
-          totalSalary += (entry['currentAmount'] ?? 0.0);
+          totalSalary += (entry[FirebaseConstants.currentAmountField] ?? 0.0);
         }
 
         setState(() {
@@ -173,9 +176,9 @@ class HomePageState extends State<HomePage> {
       final filteredExpenses = expenseData.entries
           .where((entry) {
             final data = entry.value;
-            final matchesBank = data['bankId'] == bankId;
-            final matchesSalary =
-                salaryId == null || data['salaryDocumentId'] == salaryId;
+            final matchesBank = data[FirebaseConstants.bankIdField] == bankId;
+            final matchesSalary = salaryId == null ||
+                data[FirebaseConstants.salaryDocumentIdField] == salaryId;
             return matchesBank && matchesSalary;
           })
           .map((e) => MapEntry(e.key, e.value))
@@ -259,6 +262,97 @@ class HomePageState extends State<HomePage> {
                 }
               }),
         );
+      },
+    );
+  }
+
+  void _onDeleteExpense(String expenseId, String salaryId,
+      String transactionType, double expenseAmount) async {
+    print("Deleting expense: $expenseId");
+
+    // Get the signed-in user's email
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.email == null) {
+      showToast('User not signed in.');
+      return;
+    }
+    String userEmail = user.email!;
+
+    // Fetch current salary document
+    final salaryDoc = await FirebaseService()
+        .streamGetDataInUserById(
+          userEmail,
+          FirebaseConstants.salaryCollection,
+          salaryId,
+        )
+        .first;
+
+    double currentAmount =
+        salaryDoc[FirebaseConstants.currentAmountField] ?? 0.0;
+
+    // Adjust the salary amount based on the expense being deleted
+    if (transactionType == AppConstants.transactionTypeWithdraw ||
+        transactionType == AppConstants.transactionTypeTransfer) {
+      currentAmount += expenseAmount; // refund
+    } else if (transactionType == AppConstants.transactionTypeDeposit) {
+      currentAmount -= expenseAmount; // remove deposited amount
+    }
+
+    // Update the salary document
+    await FirebaseService().updateSalaryAmount(
+      userEmail,
+      salaryId,
+      currentAmount,
+    );
+
+    // Delete the expense document
+    await FirebaseService().deleteExpenseData(
+      userEmail,
+      expenseId,
+      FirebaseConstants.expenseCollection,
+    );
+
+    _updateSalaryStream();
+  }
+
+  showAlertDialog(BuildContext context, ThemeData theme, String title,
+      String message, String buttonLabel, VoidCallback submit) {
+    // set up the AlertDialog
+    AlertDialog alert = AlertDialog(
+      title: Text(
+        title,
+        style: theme.textTheme.headlineLarge,
+      ),
+      backgroundColor: theme.dialogBackgroundColor,
+      content: Text(message, style: theme.textTheme.bodyLarge),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context, 'Cancel'),
+          child: Text(
+            'Cancel',
+            style: theme.textTheme.bodyLarge,
+          ),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+            submit();
+          },
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.secondaryGreen,
+          ),
+          child: Text(
+            buttonLabel,
+            style: const TextStyle(color: AppColors.primaryGreen),
+          ),
+        ),
+      ],
+    );
+    // show the dialog
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
       },
     );
   }
@@ -384,7 +478,7 @@ class HomePageState extends State<HomePage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          String result = await openFullScreenModal(context);
+          String result = await openFullScreenModal(context, null, null);
 
           if (result == AppConstants.refresh) {
             _updateSalaryStream();
@@ -515,8 +609,8 @@ class HomePageState extends State<HomePage> {
                                   } else {
                                     final latestSalaryDoc =
                                         salarySnapshot.data!;
-                                    final latestSalaryAmount =
-                                        latestSalaryDoc['currentAmount'];
+                                    final latestSalaryAmount = latestSalaryDoc[
+                                        FirebaseConstants.currentAmountField];
 
                                     final formattedSalaryAmount =
                                         NumberFormat.currency(
@@ -685,54 +779,112 @@ class HomePageState extends State<HomePage> {
                             padding: EdgeInsets.zero,
                             children: (expenseData.entries.where((entry) {
                               if (_selectedFilterType == null) return true;
-                              return entry.value['transactionType'] ==
+                              return entry.value[
+                                      FirebaseConstants.transactionTypeField] ==
                                   _selectedFilterType;
                             }).toList()
                                   ..sort((a, b) {
-                                    final tsA =
-                                        a.value['timestamp'] as Timestamp;
-                                    final tsB =
-                                        b.value['timestamp'] as Timestamp;
+                                    final tsA = a.value[FirebaseConstants
+                                        .timestampField] as Timestamp;
+                                    final tsB = b.value[FirebaseConstants
+                                        .timestampField] as Timestamp;
                                     return tsB.compareTo(tsA); // Newest first
                                   }))
                                 .map((entry) {
                               final expense = entry.value;
-                              final categoryId = expense['expenseCategory'];
+                              final categoryId = expense[
+                                  FirebaseConstants.expenseCategoryField];
                               final categoryInfo = expenseTypes[categoryId];
                               final categoryImage = categoryInfo?['image'] ??
                                   'assets/images/other-expenses.png';
 
-                              return ListCard(
-                                image: categoryImage,
-                                title: expense['expense'] ?? '',
-                                subTitle: Row(children: [
-                                  Text(
-                                    expense['transactionType'] ?? '',
-                                    style: theme.textTheme.bodyLarge,
+                              return Slidable(
+                                  key: ValueKey(entry
+                                      .key), // Make sure each slidable has a unique key
+                                  endActionPane: ActionPane(
+                                    motion:
+                                        const DrawerMotion(), // You can use other motions too
+                                    extentRatio:
+                                        0.4, // Adjust how much space the actions take
+                                    children: [
+                                      SlidableAction(
+                                        onPressed: (_) {
+                                          // Implement your edit logic
+                                          openFullScreenModal(
+                                              context, entry.key, expense);
+                                        },
+                                        backgroundColor:
+                                            AppColors.secondaryGreen,
+                                        foregroundColor: Colors.white,
+                                        icon: Icons.edit,
+                                        label: 'Edit',
+                                      ),
+                                      SlidableAction(
+                                        onPressed: (_) {
+                                          showAlertDialog(
+                                              context,
+                                              Theme.of(context),
+                                              'Delete Expense',
+                                              'Are you sure you want to delete this expense?',
+                                              'Delete',
+                                              () => _onDeleteExpense(
+                                                  entry.key,
+                                                  expense[FirebaseConstants
+                                                      .salaryDocumentIdField],
+                                                  expense[FirebaseConstants
+                                                      .transactionTypeField],
+                                                  expense[FirebaseConstants
+                                                      .amountField]));
+                                        },
+                                        backgroundColor: AppColors.danger,
+                                        foregroundColor: AppColors.white,
+                                        icon: Icons.delete,
+                                        label: 'Delete',
+                                      ),
+                                    ],
                                   ),
-                                  expense['transactionType'] ==
-                                          AppConstants.transactionTypeDeposit
-                                      ? const Icon(FeatherIcons.arrowDownLeft,
-                                          color: AppColors.filterButtonGreen)
-                                      : expense['transactionType'] ==
+                                  child: ListCard(
+                                    image: categoryImage,
+                                    title: expense[
+                                            FirebaseConstants.expenseField] ??
+                                        '',
+                                    subTitle: Row(children: [
+                                      Text(
+                                        expense[FirebaseConstants
+                                                .transactionTypeField] ??
+                                            '',
+                                        style: theme.textTheme.bodyLarge,
+                                      ),
+                                      expense[FirebaseConstants
+                                                  .transactionTypeField] ==
                                               AppConstants
-                                                  .transactionTypeWithdraw
+                                                  .transactionTypeDeposit
                                           ? const Icon(
-                                              FeatherIcons.arrowUpRight,
-                                              color: AppColors.danger)
-                                          : const Icon(FeatherIcons.arrowUp,
-                                              color: AppColors.danger)
-                                ]),
-                                suffix: '₹${expense['amount']}',
-                                footer: Text(
-                                    formatTimestamp(expense['timestamp']),
-                                    style: TextStyle(
-                                        fontSize: theme
-                                            .textTheme.labelSmall?.fontSize,
-                                        color: themeMode == ThemeMode.dark
-                                            ? AppColors.white70
-                                            : AppColors.black87)),
-                              );
+                                              FeatherIcons.arrowDownLeft,
+                                              color:
+                                                  AppColors.filterButtonGreen)
+                                          : expense[FirebaseConstants
+                                                      .transactionTypeField] ==
+                                                  AppConstants
+                                                      .transactionTypeWithdraw
+                                              ? const Icon(
+                                                  FeatherIcons.arrowUpRight,
+                                                  color: AppColors.danger)
+                                              : const Icon(FeatherIcons.arrowUp,
+                                                  color: AppColors.danger)
+                                    ]),
+                                    suffix:
+                                        '₹${expense[FirebaseConstants.amountField]}',
+                                    footer: Text(
+                                        formatTimestamp(expense[
+                                            FirebaseConstants.timestampField]),
+                                        style: TextStyle(
+                                            fontSize: theme
+                                                .textTheme.labelSmall?.fontSize,
+                                            color: themeMode == ThemeMode.dark
+                                                ? AppColors.white70
+                                                : AppColors.black87)),
+                                  ));
                             }).toList(),
                           );
                         },
@@ -859,9 +1011,9 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
       // Prepare the data to be stored
       Map<String, dynamic> expenseData = {
         'totalAmount': amount,
-        'currentAmount': amount,
-        'timestamp': now,
-        'bankId': _selectedBankId
+        FirebaseConstants.currentAmountField: amount,
+        FirebaseConstants.timestampField: now,
+        FirebaseConstants.bankIdField: _selectedBankId
       };
 
       // Save the data to Firebase
@@ -1016,7 +1168,7 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
             foregroundColor: AppColors.secondaryGreen,
           ),
           child: const Text(
-            'OK',
+            'Add',
             style: TextStyle(color: AppColors.primaryGreen),
           ),
         ),
@@ -1075,8 +1227,8 @@ class AddBankDialogState extends State<AddBankDialog> {
       // Prepare the data to be stored
       Map<String, dynamic> expenseData = {
         'isPrimary': _isPrimary,
-        'timestamp': now,
-        'bankId': _selectedBankId
+        FirebaseConstants.timestampField: now,
+        FirebaseConstants.bankIdField: _selectedBankId
       };
 
       // Save the data to Firebase

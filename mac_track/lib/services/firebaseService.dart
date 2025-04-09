@@ -63,7 +63,7 @@ class FirebaseService {
         .doc(userEmail)
         .collection(FirebaseConstants.salaryCollection)
         .doc(documentId)
-        .update({'currentAmount': newAmount});
+        .update({FirebaseConstants.currentAmountField: newAmount});
   }
 
   Stream<Map<String, dynamic>> streamExpenseTypes() {
@@ -77,5 +77,47 @@ class FirebaseService {
         for (var doc in snapshot.docs) doc.id: doc.data(),
       };
     });
+  }
+
+  // Get the data based on document id
+  Stream<Map<String, dynamic>> streamGetDataInUserById(
+    String userEmail,
+    String collectionName,
+    String documentId,
+  ) {
+    return _firestore
+        .collection(FirebaseConstants.usersCollection)
+        .doc(userEmail)
+        .collection(collectionName)
+        .doc(documentId)
+        .snapshots()
+        .map((snapshot) => snapshot.data() ?? {});
+  }
+
+  Future<void> updatedExpenseData(
+    String userEmail,
+    String documentId,
+    Map<String, dynamic> expenseData,
+    String collectionName,
+  ) async {
+    CollectionReference expenseCollection = _firestore
+        .collection(FirebaseConstants.usersCollection)
+        .doc(userEmail)
+        .collection(collectionName);
+
+    await expenseCollection.doc(documentId).update(expenseData);
+  }
+
+  Future<void> deleteExpenseData(
+    String userEmail,
+    String documentId,
+    String collectionName,
+  ) async {
+    CollectionReference expenseCollection = _firestore
+        .collection(FirebaseConstants.usersCollection)
+        .doc(userEmail)
+        .collection(collectionName);
+
+    await expenseCollection.doc(documentId).delete();
   }
 }
