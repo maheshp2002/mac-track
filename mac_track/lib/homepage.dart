@@ -67,16 +67,21 @@ class HomePageState extends State<HomePage> {
       String? primaryBankId;
 
       userBankData.entries.forEach((entry) {
-        final bankId = entry.value[FirebaseConstants.bankIdField];
+        final bankId =
+            FirebaseConstants.bankIdField == AppConstants.otherCategory
+                ? entry.value[FirebaseConstants.bankNameField]
+                : entry.value[FirebaseConstants.bankIdField];
         final isPrimary = entry.value['isPrimary'];
         final bankDetails = masterBanks[bankId];
 
         if (bankDetails != null) {
           updatedUserBanks.add({
             'id': bankId,
-            'name': bankDetails['name'],
+            'name': bankId == AppConstants.otherCategory
+                ? entry.value[FirebaseConstants.bankNameField]
+                : bankDetails['name'],
             'image': bankDetails['image'],
-            'isPrimary': isPrimary,
+            'isPrimary': isPrimary
           });
 
           // Identify the primary bank ID
@@ -195,13 +200,16 @@ class HomePageState extends State<HomePage> {
     });
   }
 
-  void _showAddBankDialog() {
-    showDialog(
+  void _showAddBankDialog() async {
+    var response = await showDialog(
       context: context,
       builder: (BuildContext context) => AddBankDialog(
         userBanks: userBanks,
       ),
     );
+    if (response == "Add") {
+      _initializeUser();
+    }
   }
 
   void _showBankSelectionDialog(ThemeData theme) {
@@ -444,8 +452,8 @@ class HomePageState extends State<HomePage> {
               ],
             ),
             const SizedBox(height: 10),
-            const Text(
-              "Your Balance",
+            Text(
+              _currentToggleIndex == 0 ? "Your Balance" : "Salary Balance",
               style: AppTextStyles.bodyText,
             ),
             Text(
@@ -1191,6 +1199,9 @@ class AddBankDialogState extends State<AddBankDialog> {
   late Stream<Map<String, dynamic>> _bankDataStream;
   String? _selectedBankId; // Store the selected bank's document ID
   bool _isPrimary = false;
+  bool _bankIdValid = true;
+  late FocusNode _bankIdFocusNode;
+  final TextEditingController _bankIdController = TextEditingController();
 
   @override
   void initState() {
@@ -1204,39 +1215,53 @@ class AddBankDialogState extends State<AddBankDialog> {
         _isPrimary = hasOnlyDefault;
       });
     });
+    _bankIdFocusNode = FocusNode();
   }
 
   @override
   void dispose() {
+    _bankIdFocusNode.dispose();
+    _bankIdController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (_formKey.currentState!.validate() && _selectedBankId != null) {
       User? user = FirebaseAuth.instance.currentUser;
-      if (user == null || user.email == null) {
+      if (user == null ||
+          user.email == null &&
+              (_selectedBankId != AppConstants.otherCategory ||
+                  _bankIdController.text.isNotEmpty)) {
         showToast('User not signed in.');
         return;
       }
       String userEmail = user.email ?? "";
 
+      String? bankName = _selectedBankId == AppConstants.otherCategory
+          ? _bankIdController.text
+          : _selectedBankId;
+
       // Generate a unique document ID using date, time, and amount
       DateTime now = DateTime.now();
-      String documentId = "${now.toIso8601String()}_$_selectedBankId";
+      String documentId = "${now.toIso8601String()}_$bankName";
 
       // Prepare the data to be stored
-      Map<String, dynamic> expenseData = {
+      Map<String, dynamic> bankData = {
         'isPrimary': _isPrimary,
         FirebaseConstants.timestampField: now,
-        FirebaseConstants.bankIdField: _selectedBankId
+        FirebaseConstants.bankIdField: _selectedBankId,
+        FirebaseConstants.bankNameField: bankName
       };
 
       // Save the data to Firebase
-      await FirebaseService().addData(userEmail, documentId, expenseData,
+      await FirebaseService().addData(userEmail, documentId, bankData,
           FirebaseConstants.userBankCollection);
 
       // Optionally close the modal after submitting
-      Navigator.of(context).pop();
+      Navigator.of(context).pop("Add");
+    } else if (_selectedBankId == AppConstants.otherCategory &&
+        _bankIdController.text.trim().isEmpty) {
+      showToast('Please enter bank id for "Other"');
     } else {
       if (_selectedBankId == null) {
         showToast('Please select a bank.');
@@ -1251,12 +1276,12 @@ class AddBankDialogState extends State<AddBankDialog> {
 
     return AlertDialog(
       title: Text(
-        'Add Salary',
+        'Add Bank',
         style: theme.textTheme.headlineLarge,
       ),
       backgroundColor: theme.dialogBackgroundColor,
       content: SizedBox(
-          height: 200,
+          height: 300,
           child: StreamBuilder<Map<String, dynamic>>(
             stream: _bankDataStream,
             builder: (context, snapshot) {
@@ -1299,39 +1324,131 @@ class AddBankDialogState extends State<AddBankDialog> {
                               },
                             )),
                       const SizedBox(height: 20),
+                      Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('Choose Bank',
+                              style: theme.textTheme.labelSmall)),
+                      const SizedBox(height: 10),
                       Expanded(
                           child: SingleChildScrollView(
                               child: Wrap(
                         spacing: 8.0,
                         runSpacing: 4.0,
-                        children: bankData.entries
-                            .map<Widget>((entry) => ChoiceChip(
-                                  showCheckmark: false,
-                                  avatar: Image.network(entry.value['image']),
-                                  label: Text(entry.value['name']),
-                                  labelStyle: TextStyle(
-                                    color: _selectedBankId == entry.key
-                                        ? Colors.white
-                                        : theme.textTheme.bodyLarge!.color,
-                                  ),
-                                  selectedColor: AppColors.secondary,
-                                  backgroundColor:
-                                      customTheme!.chipBackgroundColor,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(50.0),
-                                  ),
-                                  selected: _selectedBankId ==
-                                      entry.key, // Compare document ID
-                                  onSelected: (selected) {
+                        children: [
+                          // Render normal banks first
+                          ...bankData.entries
+                              .where((entry) =>
+                                  entry.key != AppConstants.otherCategory)
+                              .map((entry) => ChoiceChip(
+                                    showCheckmark: false,
+                                    avatar: Image.network(entry.value['image']),
+                                    label: Text(entry.value['name']),
+                                    labelStyle: TextStyle(
+                                      color: _selectedBankId == entry.key
+                                          ? Colors.white
+                                          : theme.textTheme.bodyLarge!.color,
+                                    ),
+                                    selectedColor: AppColors.secondary,
+                                    backgroundColor:
+                                        customTheme!.chipBackgroundColor,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(50.0),
+                                    ),
+                                    selected: _selectedBankId == entry.key,
+                                    onSelected: (selected) {
+                                      setState(() {
+                                        _selectedBankId =
+                                            selected ? entry.key : null;
+                                      });
+                                    },
+                                  )),
+                          // Append "Other" chip at the end
+                          ChoiceChip(
+                            showCheckmark: false,
+                            avatar: const Icon(FontAwesomeIcons.buildingColumns,
+                                size: 18, color: Colors.white),
+                            label: const Text('Other'),
+                            labelStyle: TextStyle(
+                              color:
+                                  _selectedBankId == AppConstants.otherCategory
+                                      ? Colors.white
+                                      : theme.textTheme.bodyLarge!.color,
+                            ),
+                            selectedColor: AppColors.secondary,
+                            backgroundColor: customTheme!.chipBackgroundColor,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(50.0),
+                            ),
+                            selected:
+                                _selectedBankId == AppConstants.otherCategory,
+                            onSelected: (selected) {
+                              setState(() {
+                                _selectedBankId = selected
+                                    ? AppConstants.otherCategory
+                                    : null;
+                              });
+                            },
+                          )
+                        ],
+                      ))),
+                      const SizedBox(height: 20),
+                      if (_selectedBankId == AppConstants.otherCategory)
+                        Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: TextFormField(
+                              controller: _bankIdController,
+                              focusNode: _bankIdFocusNode,
+                              maxLength: 7,
+                              decoration: InputDecoration(
+                                labelText: 'Bank Id',
+                                labelStyle: TextStyle(
+                                    color: theme.textTheme.bodyLarge?.color),
+                                suffixIcon: Icon(
+                                  FontAwesomeIcons.buildingColumns,
+                                  color: _bankIdValid
+                                      ? _bankIdFocusNode.hasFocus
+                                          ? AppColors
+                                              .secondary // Color when focused
+                                          : theme.iconTheme
+                                              .color // Color when not focused
+                                      : Colors
+                                          .red, // Color when validation fails
+                                ),
+                                border: const OutlineInputBorder(),
+                                focusedBorder: const OutlineInputBorder(
+                                  borderSide:
+                                      BorderSide(color: AppColors.secondary),
+                                ),
+                              ),
+                              cursorColor: AppColors.secondary,
+                              onChanged: (value) {
+                                _formKey.currentState?.validate();
+                              },
+                              validator: (value) {
+                                if (_selectedBankId ==
+                                    AppConstants.otherCategory) {
+                                  if (value == null || value.isEmpty) {
                                     setState(() {
-                                      _selectedBankId = selected
-                                          ? entry.key // Store document ID
-                                          : null;
+                                      _bankIdValid = false;
                                     });
-                                  },
-                                ))
-                            .toList(),
-                      )))
+                                    return 'Please enter a value';
+                                  }
+
+                                  final isAlphabetOnly =
+                                      RegExp(r'^[a-zA-Z]+$').hasMatch(value);
+                                  if (!isAlphabetOnly) {
+                                    setState(() {
+                                      _bankIdValid = false;
+                                    });
+                                    return 'Only alphabets are allowed (no space)';
+                                  }
+                                }
+                                setState(() {
+                                  _bankIdValid = true;
+                                });
+                                return null;
+                              },
+                            ))
                     ]));
               }
             },
@@ -1350,7 +1467,7 @@ class AddBankDialogState extends State<AddBankDialog> {
             foregroundColor: AppColors.secondaryGreen,
           ),
           child: const Text(
-            'OK',
+            'Add',
             style: TextStyle(color: AppColors.primaryGreen),
           ),
         ),

@@ -1,5 +1,5 @@
 class AppConstants {
-  static const String expenseCategoryOther = 'Other';
+  static const String otherCategory = 'Other';
   static const String addNewBankLabel = 'Add New Bank';
   static const String transactionTypeWithdraw = 'Withdraw';
   static const String transactionTypeDeposit = 'Deposit';
@@ -27,4 +27,5 @@ class FirebaseConstants {
   static const String timestampField = 'timestamp';
   static const String expenseCategoryField = 'expenseCategory';
   static const String transactionTypeField = 'transactionType';
+  static const String bankNameField = 'bankName';
 }

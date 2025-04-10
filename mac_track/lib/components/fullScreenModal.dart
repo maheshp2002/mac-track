@@ -125,14 +125,19 @@ class FullScreenModalState extends State<FullScreenModal> {
         List<Map<String, dynamic>> updatedUserBanks = [];
 
         userBankData.entries.forEach((entry) {
-          final bankId = entry.value[FirebaseConstants.bankIdField];
+          final bankId =
+              FirebaseConstants.bankIdField == AppConstants.otherCategory
+                  ? entry.value[FirebaseConstants.bankNameField]
+                  : entry.value[FirebaseConstants.bankIdField];
           final isPrimary = entry.value['isPrimary'];
           final bankDetails = masterBanks[bankId];
 
           if (bankDetails != null) {
             updatedUserBanks.add({
               'id': bankId,
-              'name': bankDetails['name'],
+              'name': bankId == AppConstants.otherCategory
+                  ? entry.value[FirebaseConstants.bankNameField]
+                  : bankDetails['name'],
               'image': bankDetails['image'],
               'isPrimary': isPrimary,
             });
@@ -467,7 +472,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                                         _expenseCategoryMap[selectedName];
 
                                     if (_selectedExpenseCategory !=
-                                        AppConstants.expenseCategoryOther) {
+                                        AppConstants.otherCategory) {
                                       _expenseController.text =
                                           _selectedExpenseCategory!;
                                     }
@@ -486,7 +491,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                               const SizedBox(height: 30),
                               TextFormField(
                                 enabled: _selectedExpenseCategory ==
-                                    AppConstants.expenseCategoryOther,
+                                    AppConstants.otherCategory,
                                 controller: _expenseController,
                                 focusNode: _expenseFocusNode,
                                 decoration: InputDecoration(
@@ -514,7 +519,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                                 },
                                 validator: (value) {
                                   if (_selectedExpenseCategory ==
-                                          AppConstants.expenseCategoryOther &&
+                                          AppConstants.otherCategory &&
                                       (value == null || value.isEmpty)) {
                                     setState(() {
                                       _isExpenseTypeValid = false;
@@ -560,42 +565,45 @@ class FullScreenModalState extends State<FullScreenModal> {
                                     )),
                               ),
                               const SizedBox(height: 20),
-                              Wrap(
-                                spacing: 8.0,
-                                runSpacing: 4.0,
-                                children: userBanks
-                                    .map<Widget>((entry) => ChoiceChip(
-                                          showCheckmark: false,
-                                          avatar: Image.network(entry['image']),
-                                          label: Text(entry['name']),
-                                          labelStyle: TextStyle(
-                                            color:
-                                                _selectedBankId == entry['id']
-                                                    ? Colors.white
-                                                    : theme.textTheme.bodyLarge!
-                                                        .color,
-                                          ),
-                                          selectedColor: AppColors.secondary,
-                                          backgroundColor:
-                                              customTheme!.chipBackgroundColor,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(50.0),
-                                          ),
-                                          selected: _selectedBankId ==
-                                              entry[
-                                                  'id'], // Compare document ID
-                                          onSelected: (selected) {
-                                            setState(() {
-                                              _selectedBankId = selected
-                                                  ? entry['id']
-                                                  // Store document ID
-                                                  : null;
-                                            });
-                                          },
-                                        ))
-                                    .toList(),
-                              ),
+                              if (widget.expense == null ||
+                                  widget.expenseId == null)
+                                Wrap(
+                                  spacing: 8.0,
+                                  runSpacing: 4.0,
+                                  children: userBanks
+                                      .map<Widget>((entry) => ChoiceChip(
+                                            showCheckmark: false,
+                                            avatar:
+                                                Image.network(entry['image']),
+                                            label: Text(entry['name']),
+                                            labelStyle: TextStyle(
+                                              color:
+                                                  _selectedBankId == entry['id']
+                                                      ? Colors.white
+                                                      : theme.textTheme
+                                                          .bodyLarge!.color,
+                                            ),
+                                            selectedColor: AppColors.secondary,
+                                            backgroundColor: customTheme!
+                                                .chipBackgroundColor,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(50.0),
+                                            ),
+                                            selected: _selectedBankId ==
+                                                entry[
+                                                    'id'], // Compare document ID
+                                            onSelected: (selected) {
+                                              setState(() {
+                                                _selectedBankId = selected
+                                                    ? entry['id']
+                                                    // Store document ID
+                                                    : null;
+                                              });
+                                            },
+                                          ))
+                                      .toList(),
+                                ),
                             ],
                           );
                         }
