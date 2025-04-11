@@ -67,17 +67,19 @@ class HomePageState extends State<HomePage> {
       String? primaryBankId;
 
       userBankData.entries.forEach((entry) {
-        final bankId =
-            FirebaseConstants.bankIdField == AppConstants.otherCategory
-                ? entry.value[FirebaseConstants.bankNameField]
-                : entry.value[FirebaseConstants.bankIdField];
+        final prevId = entry.value[FirebaseConstants.bankIdField];
+        final bankId = prevId == AppConstants.otherCategory
+            ? entry.value[FirebaseConstants.bankNameField]
+            : entry.value[FirebaseConstants.bankIdField];
         final isPrimary = entry.value['isPrimary'];
-        final bankDetails = masterBanks[bankId];
+        final bankDetails = prevId == AppConstants.otherCategory
+            ? masterBanks[prevId]
+            : masterBanks[bankId];
 
         if (bankDetails != null) {
           updatedUserBanks.add({
             'id': bankId,
-            'name': bankId == AppConstants.otherCategory
+            'name': prevId == AppConstants.otherCategory
                 ? entry.value[FirebaseConstants.bankNameField]
                 : bankDetails['name'],
             'image': bankDetails['image'],
@@ -212,64 +214,90 @@ class HomePageState extends State<HomePage> {
     }
   }
 
+  void _openManageBankDialog() {}
+
   void _showBankSelectionDialog(ThemeData theme) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(
-            'Select Bank',
-            style: theme.textTheme.displayMedium,
-          ),
-          content: DropdownButtonFormField<String>(
-              decoration: InputDecoration(
-                labelText: 'Banks',
-                labelStyle: theme.textTheme.labelSmall,
-                border: const OutlineInputBorder(),
-                focusedBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.secondary),
-                ),
-              ),
-              dropdownColor: theme.scaffoldBackgroundColor,
-              value: selectedBankId ?? 'add',
-              hint: const Text('Select Bank'),
-              icon: Icon(
-                FontAwesomeIcons.caretDown,
-                color: theme.iconTheme.color,
-              ),
-              items: userBanks.map((bank) {
-                return DropdownMenuItem<String>(
-                  value: bank['id'],
-                  child: Row(
-                    children: [
-                      Text(
-                        bank['name'],
-                        style: theme.textTheme.bodyLarge!.copyWith(
-                          color: bank['name'] == AppConstants.addNewBankLabel
-                              ? AppColors.primaryGreen
-                              : theme.textTheme.bodyLarge!.color,
-                        ),
+            title: Text(
+              'Select Bank',
+              style: theme.textTheme.displayMedium,
+            ),
+            content: SizedBox(
+              height: 100,
+              child: Column(children: [
+                DropdownButtonFormField<String>(
+                    decoration: InputDecoration(
+                      labelText: 'Banks',
+                      labelStyle: theme.textTheme.labelSmall,
+                      border: const OutlineInputBorder(),
+                      focusedBorder: const OutlineInputBorder(
+                        borderSide: BorderSide(color: AppColors.secondary),
                       ),
-                      bank['name'] == AppConstants.addNewBankLabel
-                          ? const Icon(
-                              FeatherIcons.arrowUpRight,
-                              color: AppColors.primaryGreen,
-                            )
-                          : const SizedBox()
-                    ],
-                  ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value == 'add') {
-                  Navigator.pop(context);
-                  _showAddBankDialog();
-                } else if (value != null) {
-                  Navigator.pop(context);
-                  _changeBank(value);
-                }
-              }),
-        );
+                    ),
+                    dropdownColor: theme.scaffoldBackgroundColor,
+                    value: selectedBankId ?? 'add',
+                    hint: const Text('Select Bank'),
+                    icon: Icon(
+                      FontAwesomeIcons.caretDown,
+                      color: theme.iconTheme.color,
+                    ),
+                    items: userBanks.map((bank) {
+                      return DropdownMenuItem<String>(
+                        value: bank['id'],
+                        child: Row(
+                          children: [
+                            Text(
+                              bank['name'],
+                              style: theme.textTheme.bodyLarge!.copyWith(
+                                color:
+                                    bank['name'] == AppConstants.addNewBankLabel
+                                        ? AppColors.primaryGreen
+                                        : theme.textTheme.bodyLarge!.color,
+                              ),
+                            ),
+                            bank['name'] == AppConstants.addNewBankLabel
+                                ? const Icon(
+                                    FeatherIcons.arrowUpRight,
+                                    color: AppColors.primaryGreen,
+                                  )
+                                : const SizedBox()
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value == 'add') {
+                        Navigator.pop(context);
+                        _showAddBankDialog();
+                      } else if (value != null) {
+                        Navigator.pop(context);
+                        _changeBank(value);
+                      }
+                    }),
+                const SizedBox(
+                  height: 20,
+                ),
+                InkWell(
+                    splashColor: AppColors.secondaryGreen,
+                    onTap: () => _openManageBankDialog,
+                    child: Row(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Manage Banks",
+                            style: theme.textTheme.bodyLarge!
+                                .copyWith(color: AppColors.primaryGreen),
+                          ),
+                          const Icon(
+                            FeatherIcons.arrowUpRight,
+                            color: AppColors.primaryGreen,
+                          )
+                        ]))
+              ]),
+            ));
       },
     );
   }
@@ -985,11 +1013,14 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
   late FocusNode _amountFocusNode;
   final TextEditingController _amountController = TextEditingController();
   late Stream<Map<String, dynamic>> _bankDataStream;
+  late Stream<Map<String, dynamic>> userBankDataStream;
   String? _selectedBankId; // Store the selected bank's document ID
+  List<Map<String, dynamic>> userBanks = [];
 
   @override
   void initState() {
     super.initState();
+    initializeBankData();
     _bankDataStream = FirebaseService().streamBankData();
     _amountFocusNode = FocusNode();
   }
@@ -999,6 +1030,47 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
     _amountFocusNode.dispose();
     _amountController.dispose();
     super.dispose();
+  }
+
+  void initializeBankData() {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      userBankDataStream = FirebaseService()
+          .streamGetAllData(user.email!, FirebaseConstants.userBankCollection);
+
+      userBankDataStream.listen((userBankData) async {
+        // Fetch all banks from the master collection
+        Map<String, dynamic> masterBanks = await _bankDataStream.first;
+
+        List<Map<String, dynamic>> updatedUserBanks = [];
+
+        userBankData.entries.forEach((entry) {
+          final prevId = entry.value[FirebaseConstants.bankIdField];
+          final bankId = prevId == AppConstants.otherCategory
+              ? entry.value[FirebaseConstants.bankNameField]
+              : entry.value[FirebaseConstants.bankIdField];
+          final isPrimary = entry.value['isPrimary'];
+          final bankDetails = prevId == AppConstants.otherCategory
+              ? masterBanks[prevId]
+              : masterBanks[bankId];
+
+          if (bankDetails != null) {
+            updatedUserBanks.add({
+              'id': bankId,
+              'name': prevId == AppConstants.otherCategory
+                  ? entry.value[FirebaseConstants.bankNameField]
+                  : bankDetails['name'],
+              'image': bankDetails['image'],
+              'isPrimary': isPrimary,
+            });
+          }
+        });
+
+        setState(() {
+          userBanks = updatedUserBanks;
+        });
+      });
+    }
   }
 
   Future<void> _submit() async {
@@ -1069,7 +1141,6 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
                   style: theme.textTheme.bodyLarge,
                 ));
               } else {
-                final bankData = snapshot.data!;
                 return Form(
                     key: _formKey,
                     child: Column(children: [
@@ -1077,6 +1148,7 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
                           padding: const EdgeInsets.only(top: 10),
                           child: TextFormField(
                             controller: _amountController,
+                            maxLength: 10,
                             focusNode: _amountFocusNode,
                             keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true),
@@ -1130,13 +1202,13 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
                               child: Wrap(
                         spacing: 8.0,
                         runSpacing: 4.0,
-                        children: bankData.entries
+                        children: userBanks
                             .map<Widget>((entry) => ChoiceChip(
                                   showCheckmark: false,
-                                  avatar: Image.network(entry.value['image']),
-                                  label: Text(entry.value['name']),
+                                  avatar: Image.network(entry['image']),
+                                  label: Text(entry['name']),
                                   labelStyle: TextStyle(
-                                    color: _selectedBankId == entry.key
+                                    color: _selectedBankId == entry['id']
                                         ? Colors.white
                                         : theme.textTheme.bodyLarge!.color,
                                   ),
@@ -1147,11 +1219,11 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
                                     borderRadius: BorderRadius.circular(50.0),
                                   ),
                                   selected: _selectedBankId ==
-                                      entry.key, // Compare document ID
+                                      entry['id'], // Compare document ID
                                   onSelected: (selected) {
                                     setState(() {
                                       _selectedBankId = selected
-                                          ? entry.key // Store document ID
+                                          ? entry['id'] // Store document ID
                                           : null;
                                     });
                                   },

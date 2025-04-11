@@ -125,17 +125,19 @@ class FullScreenModalState extends State<FullScreenModal> {
         List<Map<String, dynamic>> updatedUserBanks = [];
 
         userBankData.entries.forEach((entry) {
-          final bankId =
-              FirebaseConstants.bankIdField == AppConstants.otherCategory
-                  ? entry.value[FirebaseConstants.bankNameField]
-                  : entry.value[FirebaseConstants.bankIdField];
+          final prevId = entry.value[FirebaseConstants.bankIdField];
+          final bankId = prevId == AppConstants.otherCategory
+              ? entry.value[FirebaseConstants.bankNameField]
+              : entry.value[FirebaseConstants.bankIdField];
           final isPrimary = entry.value['isPrimary'];
-          final bankDetails = masterBanks[bankId];
+          final bankDetails = prevId == AppConstants.otherCategory
+              ? masterBanks[prevId]
+              : masterBanks[bankId];
 
           if (bankDetails != null) {
             updatedUserBanks.add({
               'id': bankId,
-              'name': bankId == AppConstants.otherCategory
+              'name': prevId == AppConstants.otherCategory
                   ? entry.value[FirebaseConstants.bankNameField]
                   : bankDetails['name'],
               'image': bankDetails['image'],
@@ -403,6 +405,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                                 keyboardType:
                                     const TextInputType.numberWithOptions(
                                         decimal: true),
+                                maxLength: 10,
                                 focusNode: _amountFocusNode,
                                 decoration: InputDecoration(
                                   labelText: 'Amount',
@@ -493,6 +496,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                                 enabled: _selectedExpenseCategory ==
                                     AppConstants.otherCategory,
                                 controller: _expenseController,
+                                maxLength: 15,
                                 focusNode: _expenseFocusNode,
                                 decoration: InputDecoration(
                                   labelText: 'Expense Type',

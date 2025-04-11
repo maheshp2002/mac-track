@@ -43,7 +43,7 @@ class FirebaseService {
     });
   }
 
-  Stream<List<Map<String, dynamic>>> streamUserBankData(
+  Stream<Map<String, dynamic>> streamUserBankData(
       String userEmail, String collectionName) {
     return _firestore
         .collection(FirebaseConstants.usersCollection)
@@ -51,7 +51,9 @@ class FirebaseService {
         .collection(collectionName)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => doc.data()).toList();
+      // Convert snapshot to a map of documents with their ID as keys
+      snapshot.docs.map((doc) => doc.data()).toList();
+      return {for (var doc in snapshot.docs) doc.id: doc.data()};
     });
   }
 
