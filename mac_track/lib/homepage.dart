@@ -214,7 +214,53 @@ class HomePageState extends State<HomePage> {
     }
   }
 
-  void _openManageBankDialog() {}
+  void _openManageBankDialog(ThemeData theme) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(
+            'Manage Bank',
+            style: theme.textTheme.displayMedium,
+          ),
+          content: SizedBox(
+            height: 300,
+            width: double.maxFinite,
+            child: ListView.builder(
+              itemCount: userBanks.where((bank) => bank['id'] != 'add').length,
+              itemBuilder: (context, index) {
+                final filteredBanks =
+                    userBanks.where((bank) => bank['id'] != 'add').toList();
+                final entry = filteredBanks[index];
+                final image = entry['image'] ?? '';
+                final name = entry['name'] ?? '';
+                final isPrimary = entry['isPrimary'] == true;
+
+                return ListTile(
+                  minLeadingWidth: 40,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                  leading: image.toString().startsWith('http')
+                      ? Image.network(image, width: 40, height: 40)
+                      : const Icon(Icons.account_balance),
+                  title: Text(
+                    name,
+                    style: theme.textTheme.titleLarge,
+                    textAlign: TextAlign.start,
+                  ),
+                  trailing: isPrimary
+                      ? const Icon(
+                          FontAwesomeIcons.star,
+                          color: AppColors.primaryGreen,
+                        )
+                      : null,
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   void _showBankSelectionDialog(ThemeData theme) {
     showDialog(
@@ -282,7 +328,7 @@ class HomePageState extends State<HomePage> {
                 ),
                 InkWell(
                     splashColor: AppColors.secondaryGreen,
-                    onTap: () => _openManageBankDialog,
+                    onTap: () => _openManageBankDialog(theme),
                     child: Row(
                         mainAxisAlignment: MainAxisAlignment.start,
                         children: [
