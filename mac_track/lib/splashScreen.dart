@@ -27,7 +27,7 @@ class SplashScreenState extends State<SplashScreen> {
       if (user != null) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => HomePage()),
+          MaterialPageRoute(builder: (context) => const HomePage()),
         );
       } else {
         Navigator.pushReplacement(
@@ -45,7 +45,7 @@ class SplashScreenState extends State<SplashScreen> {
         child: Image.asset(
           'assets/logo/logo-icon.png',
           width: 200,
-        ), // Ensure you have a logo.png in the assets folder
+        ),
       ),
     );
   }

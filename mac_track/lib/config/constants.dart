@@ -28,4 +28,5 @@ class FirebaseConstants {
   static const String expenseCategoryField = 'expenseCategory';
   static const String transactionTypeField = 'transactionType';
   static const String bankNameField = 'bankName';
+  static const String isPrimaryField = 'isPrimary';
 }

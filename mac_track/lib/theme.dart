@@ -20,6 +20,7 @@ class AppColors {
   static const Color black87 = Color(0xDD000000);
   static const Color transparent = Color(0x00000000);
   static const Color purple = Color(0xFF9C27B0);
+  static const Color amber = Color(0xFFFFC107);
 }
 
 class AppTextStyles {
@@ -160,6 +161,8 @@ class AppTheme {
           .copyWith(color: Colors.black87, fontWeight: FontWeight.bold),
       labelSmall: AppTextStyles.appBarTitle
           .copyWith(color: Colors.black87, fontSize: 15),
+      bodySmall: AppTextStyles.appBarTitle
+          .copyWith(color: Colors.black54, fontSize: 12),
     ),
     drawerTheme: const DrawerThemeData(
       backgroundColor: AppColors.backgroundLight,
@@ -198,6 +201,8 @@ class AppTheme {
           .copyWith(color: Colors.white, fontWeight: FontWeight.bold),
       labelSmall:
           AppTextStyles.appBarTitle.copyWith(color: Colors.white, fontSize: 15),
+      bodySmall: AppTextStyles.appBarTitle
+          .copyWith(color: Colors.white60, fontSize: 12),
     ),
     drawerTheme: const DrawerThemeData(
       backgroundColor: AppColors.backgroundDark,

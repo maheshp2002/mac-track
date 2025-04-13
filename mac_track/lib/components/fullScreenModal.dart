@@ -10,7 +10,7 @@ import '../theme.dart';
 class FullScreenModal extends StatefulWidget {
   final Map<String, dynamic>? expense;
   final String? expenseId;
-  FullScreenModal({super.key, required this.expense, required this.expenseId});
+  const FullScreenModal({super.key, required this.expense, required this.expenseId});
 
   @override
   FullScreenModalState createState() => FullScreenModalState();
@@ -124,7 +124,7 @@ class FullScreenModalState extends State<FullScreenModal> {
 
         List<Map<String, dynamic>> updatedUserBanks = [];
 
-        userBankData.entries.forEach((entry) {
+        for (var entry in userBankData.entries) {
           final prevId = entry.value[FirebaseConstants.bankIdField];
           final bankId = prevId == AppConstants.otherCategory
               ? entry.value[FirebaseConstants.bankNameField]
@@ -144,7 +144,7 @@ class FullScreenModalState extends State<FullScreenModal> {
               'isPrimary': isPrimary,
             });
           }
-        });
+        }
 
         setState(() {
           userBanks = updatedUserBanks;

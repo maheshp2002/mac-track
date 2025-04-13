@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -37,6 +38,7 @@ class HomePageState extends State<HomePage> {
   String userEmail = "";
   String currentBalance = "";
   String? _selectedFilterType;
+  final firebaseService = FirebaseService();
 
   @override
   void initState() {
@@ -50,23 +52,25 @@ class HomePageState extends State<HomePage> {
     }
 
     _initializeUser();
-    expenseTypesStream = FirebaseService().streamExpenseTypes();
+    expenseTypesStream = firebaseService.streamExpenseTypes();
   }
 
-  void _initializeUser() async {
-    bankDataStream = FirebaseService().streamBankData();
+  void _initializeUser({VoidCallback? callback}) async {
+    bankDataStream = firebaseService.streamBankData();
 
-    userBankDataStream = FirebaseService()
-        .streamGetAllData(userEmail, FirebaseConstants.userBankCollection);
+    userBankDataStream = firebaseService.streamGetAllData(
+      userEmail,
+      FirebaseConstants.userBankCollection,
+    );
 
     userBankDataStream.listen((userBankData) async {
-      // Fetch all banks from the master collection
       Map<String, dynamic> masterBanks = await bankDataStream.first;
 
       List<Map<String, dynamic>> updatedUserBanks = [];
       String? primaryBankId;
 
-      userBankData.entries.forEach((entry) {
+      for (var entry in userBankData.entries) {
+        final documentId = entry.key;
         final prevId = entry.value[FirebaseConstants.bankIdField];
         final bankId = prevId == AppConstants.otherCategory
             ? entry.value[FirebaseConstants.bankNameField]
@@ -83,41 +87,51 @@ class HomePageState extends State<HomePage> {
                 ? entry.value[FirebaseConstants.bankNameField]
                 : bankDetails['name'],
             'image': bankDetails['image'],
-            'isPrimary': isPrimary
+            'isPrimary': isPrimary,
+            'documentId': documentId,
           });
 
-          // Identify the primary bank ID
           if (isPrimary == true) {
             primaryBankId = bankId;
           }
         }
-      });
+      }
 
-      // Add the default option to add a new bank
       updatedUserBanks.add({
         'id': 'add',
         'name': AppConstants.addNewBankLabel,
         'image': '',
-        'isPrimary': false
+        'isPrimary': false,
+        'documentId': '',
       });
 
       setState(() {
         userBanks = updatedUserBanks;
 
-        // If there is a primary bank, change it
-        if (primaryBankId != null && primaryBankId!.isNotEmpty) {
-          _changeBank(primaryBankId!);
+        // Reset selectedBankId if it's no longer valid
+        final existingBankIds = updatedUserBanks.map((b) => b['id']).toList();
+        if (!existingBankIds.contains(selectedBankId)) {
+          selectedBankId = primaryBankId ?? null;
+        }
+
+        // Update UI only if we have a valid selected bank
+        if (selectedBankId != null && selectedBankId!.isNotEmpty) {
+          _changeBank(selectedBankId!);
         }
       });
+
+      // Trigger dialog refresh if passed
+      if (callback != null) callback();
     });
   }
 
   void _updateSalaryStream() async {
     final email = FirebaseAuth.instance.currentUser!.email!;
-    final stream = FirebaseService().streamGetAllData(
+    final stream = firebaseService.streamGetAllData(
       email,
       FirebaseConstants.salaryCollection,
     );
+
 
     if (_currentToggleIndex != 0) {
       // Balance view – only show latest salary and its expenses
@@ -177,7 +191,7 @@ class HomePageState extends State<HomePage> {
   }
 
   void _updateExpenseStream(String bankId, [String? salaryId]) {
-    expenseDataStream = FirebaseService()
+    expenseDataStream = firebaseService
         .streamGetAllData(userEmail, FirebaseConstants.expenseCollection)
         .map((expenseData) {
       final filteredExpenses = expenseData.entries
@@ -214,8 +228,10 @@ class HomePageState extends State<HomePage> {
     }
   }
 
-  void _openManageBankDialog(ThemeData theme) {
-    showDialog(
+  Future<void> _openManageBankDialog(ThemeData theme) async {
+    bool isUpdating = false;
+
+    return showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
@@ -226,33 +242,250 @@ class HomePageState extends State<HomePage> {
           content: SizedBox(
             height: 300,
             width: double.maxFinite,
-            child: ListView.builder(
-              itemCount: userBanks.where((bank) => bank['id'] != 'add').length,
-              itemBuilder: (context, index) {
-                final filteredBanks =
-                    userBanks.where((bank) => bank['id'] != 'add').toList();
-                final entry = filteredBanks[index];
-                final image = entry['image'] ?? '';
-                final name = entry['name'] ?? '';
-                final isPrimary = entry['isPrimary'] == true;
+            child: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setStateDialog) {
+                void refreshDialogBanks() {
+                  setStateDialog(
+                      () {}); // Just forces rebuild using updated userBanks
+                }
 
-                return ListTile(
-                  minLeadingWidth: 40,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                  leading: image.toString().startsWith('http')
-                      ? Image.network(image, width: 40, height: 40)
-                      : const Icon(Icons.account_balance),
-                  title: Text(
-                    name,
-                    style: theme.textTheme.titleLarge,
-                    textAlign: TextAlign.start,
-                  ),
-                  trailing: isPrimary
-                      ? const Icon(
-                          FontAwesomeIcons.star,
-                          color: AppColors.primaryGreen,
-                        )
-                      : null,
+                // Keep filtered inside build so it's always fresh
+                List<Map<String, dynamic>> filteredBanks =
+                    userBanks.where((bank) => bank['id'] != 'add').toList();
+
+                return Stack(
+                  children: [
+                    ListView.builder(
+                      itemCount: filteredBanks.length,
+                      itemBuilder: (context, index) {
+                        final entry = filteredBanks[index];
+                        final image = entry['image'] ?? '';
+                        final name = entry['name'] ?? '';
+                        bool isPrimary = entry['isPrimary'] == true;
+
+                        return ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Slidable(
+                                key: ValueKey(entry['documentId']),
+                                endActionPane: ActionPane(
+                                  motion: const DrawerMotion(),
+                                  extentRatio: 0.3,
+                                  children: [
+                                    SlidableAction(
+                                      onPressed: (_) async {
+                                        final bool isPrimary =
+                                            entry['isPrimary'] == true;
+                                        final int totalBanks =
+                                            filteredBanks.length;
+
+                                        if (isPrimary && totalBanks > 1) {
+                                          // Show error dialog/toast/snackbar instead of delete dialog
+                                          showDialog(
+                                            context: context,
+                                            builder: (ctx) => AlertDialog(
+                                              title: Row(children: [
+                                                const Icon(
+                                                  FontAwesomeIcons
+                                                      .triangleExclamation,
+                                                  color: AppColors.amber,
+                                                ),
+                                                const SizedBox(
+                                                  width: 10,
+                                                ),
+                                                Text(
+                                                  'Action Not Allowed',
+                                                  style: theme
+                                                      .textTheme.headlineLarge,
+                                                )
+                                              ]),
+                                              content: Text(
+                                                  'You cannot delete the primary bank while other banks exist. Please make another bank primary first.',
+                                                  style: theme
+                                                      .textTheme.bodyLarge),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.of(ctx).pop(),
+                                                  child: const Text('OK'),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                          return;
+                                        }
+
+                                        showAlertDialog(
+                                          context,
+                                          theme,
+                                          'Delete Bank',
+                                          'Are you sure you want to delete this bank and all related salary and expenses?',
+                                          'Delete',
+                                          () async {
+                                            final String bankName =
+                                                entry['name'];
+
+                                            // 1. Get all salaries for this bank
+                                            final salarySnapshot =
+                                                await FirebaseFirestore.instance
+                                                    .collection('users')
+                                                    .doc(userEmail)
+                                                    .collection(
+                                                        FirebaseConstants
+                                                            .salaryCollection)
+                                                    .get();
+
+                                            final allSalaryDocsToDelete =
+                                                salarySnapshot.docs
+                                                    .where((doc) {
+                                              final data = doc.data();
+                                              return data['bankId'] == bankName;
+                                            }).toList();
+
+                                            // 2. Delete all related expenses for each salary
+                                            final expenseSnapshot =
+                                                await FirebaseFirestore.instance
+                                                    .collection('users')
+                                                    .doc(userEmail)
+                                                    .collection(
+                                                        FirebaseConstants
+                                                            .expenseCollection)
+                                                    .get();
+
+                                            for (var salaryDoc
+                                                in allSalaryDocsToDelete) {
+                                              final salaryDocId = salaryDoc.id;
+
+                                              for (var expenseDoc
+                                                  in expenseSnapshot.docs) {
+                                                final data = expenseDoc.data();
+                                                if (data['bankId'] ==
+                                                        bankName &&
+                                                    data['salaryDocumentId'] ==
+                                                        salaryDocId) {
+                                                  await firebaseService
+                                                      .deleteExpenseData(
+                                                    userEmail,
+                                                    expenseDoc.id,
+                                                    FirebaseConstants
+                                                        .expenseCollection,
+                                                  );
+                                                }
+                                              }
+
+                                              // 3. Delete the salary document
+                                              await firebaseService
+                                                  .deleteExpenseData(
+                                                userEmail,
+                                                salaryDoc.id,
+                                                FirebaseConstants
+                                                    .salaryCollection,
+                                              );
+                                            }
+
+                                            // 4. Delete the bank
+                                            await firebaseService
+                                                .deleteExpenseData(
+                                              userEmail,
+                                              entry['documentId'],
+                                              FirebaseConstants
+                                                  .userBankCollection,
+                                            );
+
+                                            // 5. Refresh UI
+                                            _initializeUser(
+                                                callback: refreshDialogBanks);
+                                          },
+                                        );
+                                      },
+                                      backgroundColor: AppColors.danger,
+                                      foregroundColor: AppColors.white,
+                                      icon: Icons.delete,
+                                      label: 'Delete',
+                                    ),
+                                  ],
+                                ),
+                                child: ListTile(
+                                  key: ValueKey(
+                                      '${entry['id']}_${entry['isPrimary']}'),
+                                  minLeadingWidth: 40,
+                                  contentPadding:
+                                      const EdgeInsets.symmetric(horizontal: 8),
+                                  leading: image.toString().startsWith('http')
+                                      ? Image.network(image,
+                                          width: 40, height: 40)
+                                      : const Icon(Icons.account_balance),
+                                  title: Text(
+                                    name,
+                                    style: theme.textTheme.titleLarge,
+                                    textAlign: TextAlign.start,
+                                  ),
+                                  trailing: IconButton(
+                                    onPressed: isUpdating
+                                        ? null
+                                        : () async {
+                                            if (filteredBanks.length <= 1) {
+                                              // Only one bank exists — do not allow making it primary again
+                                              showToast(
+                                                  "Cannot remove a bank from primary if there is only one bank");
+                                              return;
+                                            }
+                                            setStateDialog(() {
+                                              isUpdating = true;
+                                            });
+
+                                            for (var bank in filteredBanks) {
+                                              if (bank['documentId'] != null &&
+                                                  bank['isPrimary'] == true) {
+                                                await firebaseService
+                                                    .updateDocumentFieldString(
+                                                  userEmail,
+                                                  FirebaseConstants
+                                                      .userBankCollection,
+                                                  bank['documentId'],
+                                                  FirebaseConstants
+                                                      .isPrimaryField,
+                                                  false,
+                                                );
+                                                bank['isPrimary'] = false;
+                                              }
+                                            }
+
+                                            await firebaseService
+                                                .updateDocumentFieldString(
+                                              userEmail,
+                                              FirebaseConstants
+                                                  .userBankCollection,
+                                              entry['documentId'],
+                                              FirebaseConstants.isPrimaryField,
+                                              true,
+                                            );
+
+                                            setStateDialog(() {
+                                              entry['isPrimary'] = true;
+                                              isUpdating = false;
+                                            });
+
+                                            // Pass the refresh callback so updated userBanks is shown
+                                            _initializeUser(
+                                                callback: refreshDialogBanks);
+                                          },
+                                    icon: isPrimary
+                                        ? const Icon(CupertinoIcons.star_fill,
+                                            color: AppColors.amber)
+                                        : const Icon(CupertinoIcons.star,
+                                            color: AppColors.amber),
+                                  ),
+                                )));
+                      },
+                    ),
+                    if (isUpdating)
+                      Container(
+                        color: Colors.black.withOpacity(0.3),
+                        child: const Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                  ],
                 );
               },
             ),
@@ -266,7 +499,8 @@ class HomePageState extends State<HomePage> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return StatefulBuilder(builder: (context, setStateDialog) {
+          return AlertDialog(
             title: Text(
               'Select Bank',
               style: theme.textTheme.displayMedium,
@@ -275,83 +509,88 @@ class HomePageState extends State<HomePage> {
               height: 100,
               child: Column(children: [
                 DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      labelText: 'Banks',
-                      labelStyle: theme.textTheme.labelSmall,
-                      border: const OutlineInputBorder(),
-                      focusedBorder: const OutlineInputBorder(
-                        borderSide: BorderSide(color: AppColors.secondary),
-                      ),
+                  decoration: InputDecoration(
+                    labelText: 'Banks',
+                    labelStyle: theme.textTheme.labelSmall,
+                    border: const OutlineInputBorder(),
+                    focusedBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: AppColors.secondary),
                     ),
-                    dropdownColor: theme.scaffoldBackgroundColor,
-                    value: selectedBankId ?? 'add',
-                    hint: const Text('Select Bank'),
-                    icon: Icon(
-                      FontAwesomeIcons.caretDown,
-                      color: theme.iconTheme.color,
-                    ),
-                    items: userBanks.map((bank) {
-                      return DropdownMenuItem<String>(
-                        value: bank['id'],
-                        child: Row(
-                          children: [
-                            Text(
-                              bank['name'],
-                              style: theme.textTheme.bodyLarge!.copyWith(
-                                color:
-                                    bank['name'] == AppConstants.addNewBankLabel
-                                        ? AppColors.primaryGreen
-                                        : theme.textTheme.bodyLarge!.color,
-                              ),
-                            ),
-                            bank['name'] == AppConstants.addNewBankLabel
-                                ? const Icon(
-                                    FeatherIcons.arrowUpRight,
-                                    color: AppColors.primaryGreen,
-                                  )
-                                : const SizedBox()
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value == 'add') {
-                        Navigator.pop(context);
-                        _showAddBankDialog();
-                      } else if (value != null) {
-                        Navigator.pop(context);
-                        _changeBank(value);
-                      }
-                    }),
-                const SizedBox(
-                  height: 20,
-                ),
-                InkWell(
-                    splashColor: AppColors.secondaryGreen,
-                    onTap: () => _openManageBankDialog(theme),
-                    child: Row(
-                        mainAxisAlignment: MainAxisAlignment.start,
+                  ),
+                  dropdownColor: theme.scaffoldBackgroundColor,
+                  value: selectedBankId ?? 'add',
+                  hint: const Text('Select Bank'),
+                  icon: Icon(
+                    FontAwesomeIcons.caretDown,
+                    color: theme.iconTheme.color,
+                  ),
+                  items: userBanks.map((bank) {
+                    return DropdownMenuItem<String>(
+                      value: bank['id'],
+                      child: Row(
                         children: [
                           Text(
-                            "Manage Banks",
-                            style: theme.textTheme.bodyLarge!
-                                .copyWith(color: AppColors.primaryGreen),
+                            bank['name'],
+                            style: theme.textTheme.bodyLarge!.copyWith(
+                              color:
+                                  bank['name'] == AppConstants.addNewBankLabel
+                                      ? AppColors.primaryGreen
+                                      : theme.textTheme.bodyLarge!.color,
+                            ),
                           ),
-                          const Icon(
-                            FeatherIcons.arrowUpRight,
-                            color: AppColors.primaryGreen,
-                          )
-                        ]))
+                          bank['name'] == AppConstants.addNewBankLabel
+                              ? const Icon(
+                                  FeatherIcons.arrowUpRight,
+                                  color: AppColors.primaryGreen,
+                                )
+                              : const SizedBox()
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value == 'add') {
+                      Navigator.pop(context);
+                      _showAddBankDialog();
+                    } else if (value != null) {
+                      Navigator.pop(context);
+                      _changeBank(value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 20),
+                InkWell(
+                  splashColor: AppColors.secondaryGreen,
+                  onTap: () {
+                    _openManageBankDialog(theme).then((_) {
+                      // Rebuild the dropdown after bank management closes
+                      setStateDialog(() {});
+                    });
+                  },
+                  child: Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Manage Banks",
+                          style: theme.textTheme.bodyLarge!
+                              .copyWith(color: AppColors.primaryGreen),
+                        ),
+                        const Icon(
+                          FeatherIcons.arrowUpRight,
+                          color: AppColors.primaryGreen,
+                        )
+                      ]),
+                )
               ]),
-            ));
+            ),
+          );
+        });
       },
     );
   }
 
   void _onDeleteExpense(String expenseId, String salaryId,
       String transactionType, double expenseAmount) async {
-    print("Deleting expense: $expenseId");
-
     // Get the signed-in user's email
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null || user.email == null) {
@@ -361,7 +600,7 @@ class HomePageState extends State<HomePage> {
     String userEmail = user.email!;
 
     // Fetch current salary document
-    final salaryDoc = await FirebaseService()
+    final salaryDoc = await firebaseService
         .streamGetDataInUserById(
           userEmail,
           FirebaseConstants.salaryCollection,
@@ -381,14 +620,14 @@ class HomePageState extends State<HomePage> {
     }
 
     // Update the salary document
-    await FirebaseService().updateSalaryAmount(
+    await firebaseService.updateSalaryAmount(
       userEmail,
       salaryId,
       currentAmount,
     );
 
     // Delete the expense document
-    await FirebaseService().deleteExpenseData(
+    await firebaseService.deleteExpenseData(
       userEmail,
       expenseId,
       FirebaseConstants.expenseCollection,
@@ -440,6 +679,19 @@ class HomePageState extends State<HomePage> {
   }
 
   Widget _buildSalaryWidget(String formattedSalaryAmount, ThemeData theme) {
+    final fallbackBank = {
+      'image': 'assets/logo/black.png',
+      'name': 'Select Bank',
+    };
+
+    final selectedBank = userBanks.firstWhere(
+      (bank) => bank['id'] == selectedBankId,
+      orElse: () => fallbackBank,
+    );
+
+    final imagePath = selectedBank['image'] ?? '';
+    final isNetworkImage = imagePath.toString().startsWith('http');
+
     return SlideInAnimation(
       delay: const Duration(milliseconds: 100),
       startPosition: -0.5,
@@ -477,24 +729,12 @@ class HomePageState extends State<HomePage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      selectedBankId != null
-                          ? Image.network(
-                              userBanks.firstWhere(
-                                  (bank) => bank['id'] == selectedBankId,
-                                  orElse: () => {
-                                        'image': 'assets/logo/black.png'
-                                      })['image'],
-                              width: 24,
-                              height: 24,
-                            )
-                          : const SizedBox(width: 24, height: 24),
+                      isNetworkImage
+                          ? Image.network(imagePath, width: 24, height: 24)
+                          : Image.asset(imagePath, width: 24, height: 24),
                       const SizedBox(width: 8),
                       Text(
-                        userBanks.firstWhere(
-                                (bank) => bank['id'] == selectedBankId,
-                                orElse: () =>
-                                    {'name': 'Select Bank'})['name'] ??
-                            'Select Bank',
+                        selectedBank['name'] ?? 'Select Bank',
                         style: const TextStyle(fontSize: 16),
                       ),
                     ],
@@ -513,8 +753,10 @@ class HomePageState extends State<HomePage> {
                     onPressed: () async {
                       final result = await showDialog(
                         context: context,
-                        builder: (BuildContext context) =>
-                            const AddSalaryDialog(),
+                        builder: (BuildContext context) => AddSalaryDialog(
+                          email: userEmail,
+                          onSalaryUpdated: _updateSalaryStream,
+                        ),
                       );
 
                       if (result == AppConstants.refresh) {
@@ -1047,7 +1289,9 @@ class FilterContainer extends StatelessWidget {
 }
 
 class AddSalaryDialog extends StatefulWidget {
-  const AddSalaryDialog({super.key});
+  final VoidCallback? onSalaryUpdated;
+  final String email;
+  const AddSalaryDialog({super.key, required this.email, this.onSalaryUpdated,});
 
   @override
   AddSalaryDialogState createState() => AddSalaryDialogState();
@@ -1062,13 +1306,19 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
   late Stream<Map<String, dynamic>> userBankDataStream;
   String? _selectedBankId; // Store the selected bank's document ID
   List<Map<String, dynamic>> userBanks = [];
+  final firebaseService = FirebaseService();
+  late Stream<Map<String, dynamic>> salaryDataStream = Stream.value({});
 
   @override
   void initState() {
     super.initState();
     initializeBankData();
-    _bankDataStream = FirebaseService().streamBankData();
+    _bankDataStream = firebaseService.streamBankData();
     _amountFocusNode = FocusNode();
+    salaryDataStream = firebaseService.streamGetAllData(
+      widget.email,
+      FirebaseConstants.salaryCollection,
+    );
   }
 
   @override
@@ -1081,8 +1331,8 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
   void initializeBankData() {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      userBankDataStream = FirebaseService()
-          .streamGetAllData(user.email!, FirebaseConstants.userBankCollection);
+      userBankDataStream = firebaseService.streamGetAllData(
+          user.email!, FirebaseConstants.userBankCollection);
 
       userBankDataStream.listen((userBankData) async {
         // Fetch all banks from the master collection
@@ -1090,7 +1340,7 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
 
         List<Map<String, dynamic>> updatedUserBanks = [];
 
-        userBankData.entries.forEach((entry) {
+        for (var entry in userBankData.entries) {
           final prevId = entry.value[FirebaseConstants.bankIdField];
           final bankId = prevId == AppConstants.otherCategory
               ? entry.value[FirebaseConstants.bankNameField]
@@ -1110,7 +1360,7 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
               'isPrimary': isPrimary,
             });
           }
-        });
+        }
 
         setState(() {
           userBanks = updatedUserBanks;
@@ -1143,7 +1393,7 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
       };
 
       // Save the data to Firebase
-      await FirebaseService().addData(userEmail, documentId, expenseData,
+      await firebaseService.addData(userEmail, documentId, expenseData,
           FirebaseConstants.salaryCollection);
 
       // Optionally close the modal after submitting
@@ -1153,6 +1403,177 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
         showToast('Please select a bank.');
       }
     }
+  }
+
+  Future<void> _openManageSalaryDialog(ThemeData theme) async {
+    void showAlertDialog(BuildContext context, ThemeData theme, String title,
+        String message, String buttonLabel, Future<void> Function() submit) {
+      AlertDialog alert = AlertDialog(
+        title: Text(
+          title,
+          style: theme.textTheme.headlineLarge,
+        ),
+        backgroundColor: theme.dialogBackgroundColor,
+        content: Text(message, style: theme.textTheme.bodyLarge),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'Cancel'),
+            child: Text('Cancel', style: theme.textTheme.bodyLarge),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await submit();
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.secondaryGreen,
+            ),
+            child: Text(buttonLabel,
+                style: const TextStyle(color: AppColors.primaryGreen)),
+          ),
+        ],
+      );
+
+      showDialog(
+        context: context,
+        builder: (BuildContext context) => alert,
+      );
+    }
+
+    return showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(
+            'Manage Salary',
+            style: theme.textTheme.displayMedium,
+          ),
+          content: SizedBox(
+            height: 300,
+            width: double.maxFinite,
+            child: StreamBuilder<Map<String, dynamic>>(
+              stream: salaryDataStream,
+              builder: (context, salarySnapshot) {
+                if (salarySnapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                        color: AppColors.secondaryGreen),
+                  );
+                } else if (salarySnapshot.hasError) {
+                  return Center(
+                    child: Text("An Error Occurred",
+                        style: theme.textTheme.bodyLarge),
+                  );
+                } else if (!salarySnapshot.hasData ||
+                    salarySnapshot.data!.isEmpty) {
+                  return Center(
+                    child: Text("Salary not found!",
+                        style: theme.textTheme.bodyLarge),
+                  );
+                } else {
+                  final allSalaryDocs = salarySnapshot.data!;
+                  return ListView.builder(
+                    itemCount: allSalaryDocs.length,
+                    itemBuilder: (context, index) {
+                      final entry = allSalaryDocs.entries.elementAt(index);
+                      final docId = entry.key;
+                      final docData = entry.value;
+                      final amount =
+                          docData[FirebaseConstants.currentAmountField];
+
+                      if (amount == null) return const SizedBox();
+
+                      final formattedAmount = NumberFormat.currency(
+                        locale: 'en_IN',
+                        symbol: '₹',
+                        decimalDigits: 0,
+                      ).format(amount);
+
+                      bool isDeleting = false;
+
+                      return StatefulBuilder(
+                        builder: (context, setState) {
+                          return ListTile(
+                            key: ValueKey(docId),
+                            title: Text(formattedAmount,
+                                style: TextStyle(fontSize: theme.textTheme.titleLarge?.fontSize, color: AppColors.primaryGreen)),
+                            subtitle: Text("in ${docData[FirebaseConstants.bankIdField]}",
+                                style: theme.textTheme.bodySmall),
+                            trailing: isDeleting
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : IconButton(
+                                    icon: const Icon(FontAwesomeIcons.trash,
+                                        color: AppColors.danger),
+                                    onPressed: () {
+                                      showAlertDialog(
+                                        context,
+                                        theme,
+                                        'Delete Salary',
+                                        'Are you sure you want to delete this salary and all related expenses?',
+                                        'Delete',
+                                        () async {
+                                          setState(() => isDeleting = true);
+
+                                          try {
+                                            // 1. Delete all related expenses
+                                            final expenseSnapshot =
+                                                await FirebaseFirestore.instance
+                                                    .collection('users')
+                                                    .doc(widget.email)
+                                                    .collection(
+                                                        FirebaseConstants
+                                                            .expenseCollection)
+                                                    .get();
+
+                                            for (var expenseDoc
+                                                in expenseSnapshot.docs) {
+                                              final data = expenseDoc.data();
+                                              if (data['salaryDocumentId'] ==
+                                                  docId) {
+                                                await firebaseService
+                                                    .deleteExpenseData(
+                                                  widget.email,
+                                                  expenseDoc.id,
+                                                  FirebaseConstants
+                                                      .expenseCollection,
+                                                );
+                                              }
+                                            }
+
+                                            // 2. Delete the salary document
+                                            await firebaseService
+                                                .deleteExpenseData(
+                                              widget.email,
+                                              docId,
+                                              FirebaseConstants
+                                                  .salaryCollection,
+                                            );
+
+                                          widget.onSalaryUpdated?.call();
+                                          } catch (e) {
+                                            print("Delete error: $e");
+                                          }
+                                        },
+                                      );
+                                    },
+                                  ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                }
+              },
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -1275,7 +1696,27 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
                                   },
                                 ))
                             .toList(),
-                      )))
+                      ))),
+                      const SizedBox(height: 20),
+                      InkWell(
+                        splashColor: AppColors.secondaryGreen,
+                        onTap: () {
+                          _openManageSalaryDialog(theme).then((_) {});
+                        },
+                        child: Row(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Manage Salary",
+                                style: theme.textTheme.bodyLarge!
+                                    .copyWith(color: AppColors.primaryGreen),
+                              ),
+                              const Icon(
+                                FeatherIcons.arrowUpRight,
+                                color: AppColors.primaryGreen,
+                              )
+                            ]),
+                      )
                     ]));
               }
             },
@@ -1320,11 +1761,12 @@ class AddBankDialogState extends State<AddBankDialog> {
   bool _bankIdValid = true;
   late FocusNode _bankIdFocusNode;
   final TextEditingController _bankIdController = TextEditingController();
+  final firebaseService = FirebaseService();
 
   @override
   void initState() {
     super.initState();
-    _bankDataStream = FirebaseService().streamBankData();
+    _bankDataStream = firebaseService.streamBankData();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final hasOnlyDefault =
@@ -1363,7 +1805,22 @@ class AddBankDialogState extends State<AddBankDialog> {
       DateTime now = DateTime.now();
       String documentId = "${now.toIso8601String()}_$bankName";
 
-      // Prepare the data to be stored
+      // Step 1: Unmark other banks as primary
+      if (_isPrimary) {
+        for (var bank in widget.userBanks) {
+          if (bank['id'] != 'add' && bank['isPrimary'] == true) {
+            await firebaseService.updateDocumentFieldString(
+              userEmail,
+              FirebaseConstants.userBankCollection,
+              bank['documentId'],
+              FirebaseConstants.isPrimaryField,
+              false,
+            );
+          }
+        }
+      }
+
+      // Step 2: Prepare the data to be stored
       Map<String, dynamic> bankData = {
         'isPrimary': _isPrimary,
         FirebaseConstants.timestampField: now,
@@ -1371,8 +1828,8 @@ class AddBankDialogState extends State<AddBankDialog> {
         FirebaseConstants.bankNameField: bankName
       };
 
-      // Save the data to Firebase
-      await FirebaseService().addData(userEmail, documentId, bankData,
+      // Step 3: Save the data to Firebase
+      await firebaseService.addData(userEmail, documentId, bankData,
           FirebaseConstants.userBankCollection);
 
       // Optionally close the modal after submitting

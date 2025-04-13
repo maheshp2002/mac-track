@@ -122,4 +122,19 @@ class FirebaseService {
 
     await expenseCollection.doc(documentId).delete();
   }
+
+  // Update the salary amount in the salary document
+  Future<void> updateDocumentFieldString(
+      String? userEmail,
+      String collectionName,
+      String documentId,
+      String filedName,
+      filedValue) async {
+    await FirebaseFirestore.instance
+        .collection(FirebaseConstants.usersCollection)
+        .doc(userEmail)
+        .collection(collectionName)
+        .doc(documentId)
+        .update({filedName: filedValue});
+  }
 }

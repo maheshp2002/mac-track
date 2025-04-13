@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mac_track/homepage.dart';
 import 'package:mac_track/insight.dart';
+import 'package:mac_track/theme.dart';
 import '../sign.dart';
 
 class NavBar extends StatelessWidget {
@@ -30,20 +31,27 @@ class NavBar extends StatelessWidget {
         padding: EdgeInsets.zero,
         children: <Widget>[
           DrawerHeader(
-            decoration: BoxDecoration(
-              color: theme.primaryColor, // Use theme's primary color
-            ),
-            child: Text(
-              'Menu',
-              style: theme.textTheme.displayLarge,
-            ),
-          ),
+              decoration: BoxDecoration(
+                image: const DecorationImage(
+                  image: AssetImage(
+                      'assets/gifs/money-2.gif'),
+                  fit: BoxFit.cover,
+                ),
+                color: theme.primaryColor,
+              ),
+              child: Align(
+                alignment: Alignment.bottomLeft,
+                child: Text(
+                  'Menu',
+                  style: TextStyle(fontSize: theme.textTheme.displayLarge?.fontSize, fontWeight: theme.textTheme.displayLarge?.fontWeight, color: AppColors.black87),
+                ),
+              )),
           ListTile(
             leading: Icon(FontAwesomeIcons.house, color: theme.iconTheme.color),
             title: Text('Home', style: theme.textTheme.bodyLarge),
             onTap: () => Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => HomePage()),
+              MaterialPageRoute(builder: (context) => const HomePage()),
             ),
           ),
           ListTile(
@@ -52,7 +60,7 @@ class NavBar extends StatelessWidget {
             title: Text('Insight', style: theme.textTheme.bodyLarge),
             onTap: () => Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => Insight()),
+              MaterialPageRoute(builder: (context) => const Insight()),
             ),
           ),
           ListTile(
