@@ -93,13 +93,13 @@ class _ExpenseGraphState extends State<ExpenseGraph> {
         verticalInterval: 1,
         getDrawingHorizontalLine: (value) {
           return const FlLine(
-            color: Colors.yellow,
+            color: AppColors.transparent,
             strokeWidth: 1,
           );
         },
         getDrawingVerticalLine: (value) {
           return const FlLine(
-            color: Colors.red,
+            color: AppColors.transparent,
             strokeWidth: 1,
           );
         },

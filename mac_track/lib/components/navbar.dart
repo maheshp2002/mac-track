@@ -42,7 +42,7 @@ class NavBar extends StatelessWidget {
               child: Align(
                 alignment: Alignment.bottomLeft,
                 child: Text(
-                  'Menu',
+                  'MacTrack',
                   style: TextStyle(fontSize: theme.textTheme.displayLarge?.fontSize, fontWeight: theme.textTheme.displayLarge?.fontWeight, color: AppColors.black87),
                 ),
               )),

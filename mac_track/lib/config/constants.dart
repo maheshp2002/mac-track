@@ -5,6 +5,7 @@ class AppConstants {
   static const String transactionTypeDeposit = 'Deposit';
   static const String transactionTypeTransfer = 'Transfer';
   static const String refresh = 'refresh';
+  static const String allItem = 'All';
 }
 
 class FirebaseConstants {
@@ -29,4 +30,5 @@ class FirebaseConstants {
   static const String transactionTypeField = 'transactionType';
   static const String bankNameField = 'bankName';
   static const String isPrimaryField = 'isPrimary';
+  static const String totalAmountField = 'totalAmount';
 }

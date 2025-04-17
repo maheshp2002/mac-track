@@ -137,4 +137,41 @@ class FirebaseService {
         .doc(documentId)
         .update({filedName: filedValue});
   }
+
+  Future<void> addNotificationExpense({
+    required double amount,
+    required String type,
+    required DateTime timestamp,
+    required String userEmail,
+  }) async {
+    final expenseData = {
+      "amount": amount,
+      "type": type,
+      "bankId": "auto-detected",
+      "timestamp": timestamp,
+      "source": "notification",
+    };
+
+    await _firestore
+        .collection(FirebaseConstants.usersCollection)
+        .doc(userEmail)
+        .collection("expense")
+        .add(expenseData);
+  }
+
+  Stream<Map<String, dynamic>> streamGetAllDataForReport(
+    String userEmail, String collectionName) {
+  return _firestore
+      .collection(FirebaseConstants.usersCollection)
+      .doc(userEmail)
+      .collection(collectionName)
+      .snapshots()
+      .map((snapshot) {
+    return {
+      for (var doc in snapshot.docs)
+        doc.id: doc.data() as Map<String, dynamic>
+    };
+  });
+}
+
 }

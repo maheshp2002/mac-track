@@ -30,7 +30,7 @@ class CurvedToggleButtonState extends State<CurvedToggleButton> {
       inactiveFgColor: customTheme.toggleButtonTextColor,
       initialLabelIndex: _currentIndex,
       totalSwitches: 3,
-      labels: const ['Daily', 'Weekly', 'Monthly'],
+      labels: const ['Weekly', 'Monthly', 'Yearly'],
       radiusStyle: true,
       onToggle: (index) {
         setState(() {

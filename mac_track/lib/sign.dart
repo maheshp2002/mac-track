@@ -43,6 +43,8 @@ class SignInPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       body: Stack(
         children: [
@@ -89,22 +91,25 @@ class SignInPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Spacer(),
-                    const SizedBox(
+                    SizedBox(
                       width: 260,
                       child: Column(
                         children: [
                           Text(
                             "Track Your Expense",
                             style: TextStyle(
-                              fontSize: 60,
-                              fontWeight: FontWeight.w700,
-                              fontFamily: "Poppins",
-                              height: 1.2,
-                            ),
+                                fontSize: 60,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: "Poppins",
+                                height: 1.2,
+                                color: theme.textTheme.displayLarge?.color),
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           Text(
                             "The smart way to manage expenses, budget better, and reach your financial goals.",
+                            style: TextStyle(
+                                fontFamily: "Poppins",
+                                color: theme.textTheme.bodyLarge?.color),
                           ),
                         ],
                       ),
@@ -114,11 +119,16 @@ class SignInPage extends StatelessWidget {
                         child: ElevatedButton.icon(
                       onPressed: () => _signInWithGoogle(context),
                       icon: CircleAvatar(
-                        radius: 13,
-                        child: Image.asset(
-                        "assets/logo/google-icon.png",
-                      )),
-                      label: const Text("Sign in with Google"),
+                          radius: 13,
+                          child: Image.asset(
+                            "assets/logo/google-icon.png",
+                          )),
+                      label: Text(
+                        "Sign in with Google",
+                        style: TextStyle(
+                            fontFamily: "Poppins",
+                            color: theme.textTheme.bodyLarge?.color),
+                      ),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 24, vertical: 12),
@@ -128,10 +138,14 @@ class SignInPage extends StatelessWidget {
                             borderRadius: BorderRadius.circular(100)),
                       ),
                     )),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
                       child: Text(
-                          "Track your daily spending, analyze habits, and make informed decisions effortlessly. Simple, fast, and beautifully designed."),
+                        "Track your daily spending, analyze habits, and make informed decisions effortlessly. Simple, fast, and beautifully designed.",
+                        style: TextStyle(
+                            fontFamily: "Poppins",
+                            color: theme.textTheme.bodyLarge?.color),
+                      ),
                     )
                   ],
                 ),
