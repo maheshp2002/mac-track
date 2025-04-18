@@ -180,11 +180,9 @@ class InsightState extends State<Insight> {
       for (var entry in salaryData) {
         if (entry['id'] != AppConstants.allItem) {
           // Skip "All" item
-          print("haha heh $entry");
           totalSalary += (entry[FirebaseConstants.currentAmountField] ?? 0.0);
         }
       }
-      print("haha total $totalSalary");
 
       setState(() {
         currentBalance = NumberFormat.currency(
@@ -201,9 +199,11 @@ class InsightState extends State<Insight> {
   }
 
   void _updateExpenseStream(String bankId, [String? salaryId]) {
+
     expenseDataStream = firebaseService
         .streamGetAllData(userEmail, FirebaseConstants.expenseCollection)
         .map((expenseData) {
+
       final filteredExpenses = expenseData.entries
           .where((entry) {
             final data = entry.value;
@@ -215,16 +215,25 @@ class InsightState extends State<Insight> {
           .map((e) => MapEntry(e.key, e.value))
           .toList();
 
+          // Calculate the total expenses for the filtered list
+          double totalExpenseAmount = 0;
+          for (var entry in filteredExpenses) {
+            if (entry.value[FirebaseConstants.transactionTypeField] != AppConstants.transactionTypeDeposit) 
+            {
+              totalExpenseAmount += (entry.value[FirebaseConstants.amountField] ?? 0.0);
+            }
+          }
+
+          setState(() {
+            totalExpense = NumberFormat.currency(
+              locale: 'en_IN',
+              symbol: '₹',
+              decimalDigits: 0,
+            ).format(totalExpenseAmount);
+          });
+
       return Map.fromEntries(filteredExpenses);
     });
-
-    // setState(() {
-    //   totalExpense= NumberFormat.currency(
-    //     locale: 'en_IN',
-    //     symbol: '₹',
-    //     decimalDigits: 0,
-    //   ).format(selected[FirebaseConstants.AmountField]); 
-    // });
   }
 
   void _changeBank(String bankId) {
@@ -275,27 +284,19 @@ class InsightState extends State<Insight> {
           child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: StreamBuilder<Map<String, dynamic>>(
-                  stream: bankDataStream,
-                  builder: (context, bankSnapshot) {
-                    if (bankSnapshot.connectionState ==
+                  stream: expenseDataStream,
+                  builder: (context, expenseSnapshot) {
+                    if (expenseSnapshot.connectionState ==
                         ConnectionState.waiting) {
                       return const Center(
                         child: CircularProgressIndicator(
                           color: AppColors.secondaryGreen,
                         ),
                       );
-                    } else if (bankSnapshot.hasError) {
+                    } else if (expenseSnapshot.hasError) {
                       return Center(
                         child: Text(
                           "An Error Occurred",
-                          style: theme.textTheme.bodyLarge,
-                        ),
-                      );
-                    } else if (!bankSnapshot.hasData ||
-                        bankSnapshot.data!.isEmpty) {
-                      return Center(
-                        child: Text(
-                          "No bank data available.",
                           style: theme.textTheme.bodyLarge,
                         ),
                       );
@@ -309,7 +310,7 @@ class InsightState extends State<Insight> {
                               children: [
                                 Text("Total Expense",
                                     style: theme.textTheme.bodyLarge),
-                                Text("Rs. $currentBalance",
+                                Text("Rs. ${totalExpense.isEmpty ? 0.0 : totalExpense}",
                                     style: theme.textTheme.displayLarge)
                               ],
                             )),
@@ -331,7 +332,7 @@ class InsightState extends State<Insight> {
                                       const EdgeInsets.symmetric(horizontal: 8),
                                   child: dropDownSelect(
                                     theme,
-                                    selectedBankId!,
+                                    selectedBankId ?? "",
                                     userBanks.map((bank) {
                                       return DropdownMenuItem<String>(
                                           value: bank['id'],
@@ -383,7 +384,7 @@ class InsightState extends State<Insight> {
                                               child: Text(
                                                 displayAmount !=
                                                         AppConstants.allItem
-                                                    ? "₹$displayAmount"
+                                                    ? "₹${salary[FirebaseConstants.totalAmountField]}"
                                                     : displayAmount,
                                                 overflow: TextOverflow.ellipsis,
                                                 style:
