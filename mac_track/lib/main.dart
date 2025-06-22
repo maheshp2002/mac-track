@@ -1,12 +1,10 @@
 import 'package:bot_toast/bot_toast.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:mac_track/utils/reminders.dart';
 import 'package:provider/provider.dart';
 import 'components/themeManager.dart';
 import 'services/defaultFirebaseOption.dart';
-import 'services/firebaseService.dart';
-import 'services/notification-listener.dart';
 import 'splashScreen.dart';
 import 'theme.dart';
 
@@ -16,20 +14,21 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await initializeNotifications();
 
-  final FirebaseService firebaseService = FirebaseService();
+  // final FirebaseService firebaseService = FirebaseService();
 
-  await initializeNotifications((transaction) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      await firebaseService.addNotificationExpense(
-        amount: transaction.amount,
-        type: transaction.type,
-        timestamp: transaction.timestamp,
-        userEmail: user.email!,
-      );
-    }
-  });
+  // await initializeNotifications((transaction) async {
+  //   final user = FirebaseAuth.instance.currentUser;
+  //   if (user != null) {
+  //     await firebaseService.addNotificationExpense(
+  //       amount: transaction.amount,
+  //       type: transaction.type,
+  //       timestamp: transaction.timestamp,
+  //       userEmail: user.email!,
+  //     );
+  //   }
+  // });
 
   runApp(
     ChangeNotifierProvider(

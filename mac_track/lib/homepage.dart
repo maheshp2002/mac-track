@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:mac_track/components/setReminder.dart';
 import 'package:mac_track/config/constants.dart';
 import 'package:provider/provider.dart';
 import 'package:toggle_switch/toggle_switch.dart';
@@ -1140,7 +1141,7 @@ class HomePageState extends State<HomePage> {
                                         backgroundColor:
                                             AppColors.secondaryGreen,
                                         foregroundColor: Colors.white,
-                                        icon: Icons.edit,
+                                        icon: FontAwesomeIcons.pencil,
                                         label: 'Edit',
                                       ),
                                       SlidableAction(
@@ -1162,8 +1163,23 @@ class HomePageState extends State<HomePage> {
                                         },
                                         backgroundColor: AppColors.danger,
                                         foregroundColor: AppColors.white,
-                                        icon: Icons.delete,
+                                        icon: FontAwesomeIcons.trash,
                                         label: 'Delete',
+                                      ),
+                                      SlidableAction(
+                                        onPressed: (_) {
+                                          showDialog(
+                                            context: context,
+                                            builder: (_) => SetReminderDialog(
+                                              documentId: expense[FirebaseConstants.salaryDocumentIdField],
+                                              reminderName: expense[FirebaseConstants.expenseCategoryField],
+                                            ),
+                                          );
+                                        },
+                                        backgroundColor: AppColors.amber,
+                                        foregroundColor: AppColors.white,
+                                        icon: FontAwesomeIcons.clock,
+                                        label: 'Reminder',
                                       ),
                                     ],
                                   ),

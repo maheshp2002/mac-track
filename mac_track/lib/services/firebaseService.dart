@@ -169,7 +169,7 @@ class FirebaseService {
       .map((snapshot) {
     return {
       for (var doc in snapshot.docs)
-        doc.id: doc.data() as Map<String, dynamic>
+        doc.id: doc.data()
     };
   });
 }

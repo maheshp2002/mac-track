@@ -1,0 +1,2 @@
+C:/Users/mahesh.p/Documents/GitHub/mac-track/mac_track/android/app/.cxx/Debug/636a2w2c/x86_64/CMakeFiles/edit_cache.dir
+C:/Users/mahesh.p/Documents/GitHub/mac-track/mac_track/android/app/.cxx/Debug/636a2w2c/x86_64/CMakeFiles/rebuild_cache.dir
