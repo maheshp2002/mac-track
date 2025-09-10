@@ -133,7 +133,6 @@ class HomePageState extends State<HomePage> {
       FirebaseConstants.salaryCollection,
     );
 
-
     if (_currentToggleIndex != 0) {
       // Balance view – only show latest salary and its expenses
       stream.first.then((data) {
@@ -236,10 +235,24 @@ class HomePageState extends State<HomePage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(
-            'Manage Bank',
-            style: theme.textTheme.displayMedium,
-          ),
+          backgroundColor: theme.dialogBackgroundColor,
+          title:
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(
+              'Manage Bank',
+              style: theme.textTheme.displayMedium,
+            ),
+            IconButton(
+              icon: Icon(FontAwesomeIcons.xmark, color: theme.iconTheme.color),
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              iconSize: 18,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              splashRadius: 20,
+            ),
+          ]),
           content: SizedBox(
             height: 300,
             width: double.maxFinite,
@@ -502,10 +515,26 @@ class HomePageState extends State<HomePage> {
       builder: (BuildContext context) {
         return StatefulBuilder(builder: (context, setStateDialog) {
           return AlertDialog(
-            title: Text(
-              'Select Bank',
-              style: theme.textTheme.displayMedium,
-            ),
+            backgroundColor: theme.dialogBackgroundColor,
+            title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Select Bank',
+                    style: theme.textTheme.displayMedium,
+                  ),
+                  IconButton(
+                    icon: Icon(FontAwesomeIcons.xmark,
+                        color: theme.iconTheme.color),
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    iconSize: 18,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    splashRadius: 20,
+                  ),
+                ]),
             content: SizedBox(
               height: 100,
               child: Column(children: [
@@ -1171,8 +1200,12 @@ class HomePageState extends State<HomePage> {
                                           showDialog(
                                             context: context,
                                             builder: (_) => SetReminderDialog(
-                                              documentId: expense[FirebaseConstants.salaryDocumentIdField],
-                                              reminderName: expense[FirebaseConstants.expenseCategoryField],
+                                              documentId: expense[
+                                                  FirebaseConstants
+                                                      .salaryDocumentIdField],
+                                              reminderName: expense[
+                                                  FirebaseConstants
+                                                      .expenseCategoryField],
                                             ),
                                           );
                                         },
@@ -1307,7 +1340,11 @@ class FilterContainer extends StatelessWidget {
 class AddSalaryDialog extends StatefulWidget {
   final VoidCallback? onSalaryUpdated;
   final String email;
-  const AddSalaryDialog({super.key, required this.email, this.onSalaryUpdated,});
+  const AddSalaryDialog({
+    super.key,
+    required this.email,
+    this.onSalaryUpdated,
+  });
 
   @override
   AddSalaryDialogState createState() => AddSalaryDialogState();
@@ -1460,10 +1497,25 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(
+          backgroundColor: theme.dialogBackgroundColor,
+          title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
             'Manage Salary',
             style: theme.textTheme.displayMedium,
           ),
+          IconButton(
+              icon: Icon(FontAwesomeIcons.xmark, color: theme.iconTheme.color),
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              iconSize: 18,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              splashRadius: 20,
+            ),
+          ]),
           content: SizedBox(
             height: 300,
             width: double.maxFinite,
@@ -1512,8 +1564,12 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
                           return ListTile(
                             key: ValueKey(docId),
                             title: Text(formattedAmount,
-                                style: TextStyle(fontSize: theme.textTheme.titleLarge?.fontSize, color: AppColors.primaryGreen)),
-                            subtitle: Text("in ${docData[FirebaseConstants.bankIdField]}",
+                                style: TextStyle(
+                                    fontSize:
+                                        theme.textTheme.titleLarge?.fontSize,
+                                    color: AppColors.primaryGreen)),
+                            subtitle: Text(
+                                "in ${docData[FirebaseConstants.bankIdField]}",
                                 style: theme.textTheme.bodySmall),
                             trailing: isDeleting
                                 ? const SizedBox(
@@ -1570,7 +1626,7 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
                                                   .salaryCollection,
                                             );
 
-                                          widget.onSalaryUpdated?.call();
+                                            widget.onSalaryUpdated?.call();
                                           } catch (e) {
                                             print("Delete error: $e");
                                           }
@@ -1598,10 +1654,24 @@ class AddSalaryDialogState extends State<AddSalaryDialog> {
     final customTheme = theme.extension<AppThemeExtension>();
 
     return AlertDialog(
-      title: Text(
-        'Add Salary',
-        style: theme.textTheme.headlineLarge,
-      ),
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+        Text(
+          'Add Salary',
+          style: theme.textTheme.headlineLarge,
+        ),
+        IconButton(
+                icon: Icon(FontAwesomeIcons.xmark, color: theme.iconTheme.color),
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                iconSize: 18,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                splashRadius: 20,
+              ),
+      ]),
       backgroundColor: theme.dialogBackgroundColor,
       content: SizedBox(
           height: 200,
@@ -1866,10 +1936,22 @@ class AddBankDialogState extends State<AddBankDialog> {
     final customTheme = theme.extension<AppThemeExtension>();
 
     return AlertDialog(
-      title: Text(
-        'Add Bank',
-        style: theme.textTheme.headlineLarge,
-      ),
+      title: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text(
+          'Add Bank',
+          style: theme.textTheme.headlineLarge,
+        ),
+        IconButton(
+          icon: Icon(FontAwesomeIcons.xmark, color: theme.iconTheme.color),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          iconSize: 18,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          splashRadius: 20,
+        ),
+      ]),
       backgroundColor: theme.dialogBackgroundColor,
       content: SizedBox(
           height: 300,
