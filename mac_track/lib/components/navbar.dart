@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:mac_track/homepage.dart';
-import 'package:mac_track/insight.dart';
-import 'package:mac_track/theme.dart';
-import '../sign.dart';
+import 'package:mac_track/ui/homepage.dart';
+import 'package:mac_track/ui/insight.dart';
+import 'package:mac_track/ui/theme.dart';
+import '../ui/sign.dart';
 
 class NavBar extends StatelessWidget {
   const NavBar({super.key});

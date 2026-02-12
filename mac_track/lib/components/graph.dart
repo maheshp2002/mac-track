@@ -1,6 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:mac_track/theme.dart';
+import 'package:mac_track/ui/theme.dart';
 
 class ExpenseGraph extends StatefulWidget {
   const ExpenseGraph({super.key});
@@ -161,7 +161,7 @@ class _ExpenseGraphState extends State<ExpenseGraph> {
             show: true,
             gradient: LinearGradient(
               colors: gradientColors
-                  .map((color) => color.withOpacity(0.3))
+                  .map((color) => color.withValues(alpha: 0.3))
                   .toList(),
             ),
           ),
@@ -255,10 +255,10 @@ class _ExpenseGraphState extends State<ExpenseGraph> {
               colors: [
                 ColorTween(begin: gradientColors[0], end: gradientColors[1])
                     .lerp(0.2)!
-                    .withOpacity(0.1),
+                    .withValues(alpha: 0.1),
                 ColorTween(begin: gradientColors[0], end: gradientColors[1])
                     .lerp(0.2)!
-                    .withOpacity(0.1),
+                    .withValues(alpha: 0.1),
               ],
             ),
           ),

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:mac_track/components/curvedToggleButton.dart';
+import 'package:mac_track/components/curved_toggle_button.dart';
 import 'package:provider/provider.dart';
-import 'components/commonAppBar.dart';
-import 'components/graph.dart';
-import 'components/navbar.dart';
-import 'components/themeManager.dart';
+import '../components/common_app_bar.dart';
+import '../components/graph.dart';
+import '../components/navbar.dart';
+import '../components/theme_manager.dart';
 import 'theme.dart';
-import '../config/constants.dart';
-import '../services/firebaseService.dart';
+import '../../config/constants.dart';
+import '../services/firebase_service.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -323,7 +323,7 @@ class InsightState extends State<Insight> {
                               border: Border.all(
                                   color: customTheme!.toggleButtonFillColor,
                                   width: 2),
-                              color: theme.dialogBackgroundColor,
+                              color: theme.dialogTheme.backgroundColor,
                             ),
                             child: Row(children: [
                               Expanded(

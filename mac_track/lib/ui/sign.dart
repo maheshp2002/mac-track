@@ -3,7 +3,8 @@ import 'dart:ui';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/material.dart';
-import 'package:mac_track/theme.dart';
+import 'package:mac_track/components/toast.dart';
+import 'package:mac_track/ui/theme.dart';
 import 'package:rive/rive.dart' hide Image;
 
 import 'homepage.dart';
@@ -37,7 +38,7 @@ class SignInPage extends StatelessWidget {
       }
     } catch (e) {
       // Handle errors here
-      print('Error signing in with Google: $e');
+      showToast('Error signing in with Google', isSuccess: false);
     }
   }
 

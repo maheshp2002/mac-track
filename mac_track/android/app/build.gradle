@@ -25,8 +25,8 @@ if (flutterVersionName == null) {
 
 android {
     namespace "com.example.mac_track"
-    compileSdkVersion 35
-    ndkVersion "27.0.12077973"
+    compileSdkVersion 36
+    ndkVersion "29.0.14033849"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8

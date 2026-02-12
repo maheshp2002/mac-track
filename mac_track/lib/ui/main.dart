@@ -1,11 +1,11 @@
 import 'package:bot_toast/bot_toast.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:mac_track/utils/reminders.dart';
+import 'package:mac_track/services/flutter_local_notification_plugin.dart';
 import 'package:provider/provider.dart';
-import 'components/themeManager.dart';
-import 'services/defaultFirebaseOption.dart';
-import 'splashScreen.dart';
+import '../components/theme_manager.dart';
+import '../services/default_firebase_option.dart';
+import 'splash_screen.dart';
 import 'theme.dart';
 
 void main() async {
@@ -15,20 +15,6 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await initializeNotifications();
-
-  // final FirebaseService firebaseService = FirebaseService();
-
-  // await initializeNotifications((transaction) async {
-  //   final user = FirebaseAuth.instance.currentUser;
-  //   if (user != null) {
-  //     await firebaseService.addNotificationExpense(
-  //       amount: transaction.amount,
-  //       type: transaction.type,
-  //       timestamp: transaction.timestamp,
-  //       userEmail: user.email!,
-  //     );
-  //   }
-  // });
 
   runApp(
     ChangeNotifierProvider(

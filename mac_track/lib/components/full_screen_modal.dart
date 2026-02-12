@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:mac_track/components/toast.dart';
+import 'package:mac_track/services/csv_transaction_importer.dart';
+import 'package:mac_track/ui/widgets/common_dialog.dart';
 import '../config/constants.dart';
-import '../services/firebaseService.dart';
-import '../theme.dart';
+import '../services/firebase_service.dart';
+import '../ui/theme.dart';
 
 class FullScreenModal extends StatefulWidget {
   final Map<String, dynamic>? expense;
@@ -33,6 +37,8 @@ class FullScreenModalState extends State<FullScreenModal> {
   bool _isExpenseTypeValid = true;
   bool _isFormChanged = false;
   bool iosStyle = true;
+  StreamSubscription<Map<String, dynamic>>? _userBankSub;
+  final FirebaseService _firebaseService = FirebaseService();
 
   // Dropdown related variables
   String _selectedTransactionType = AppConstants.transactionTypeWithdraw;
@@ -52,19 +58,27 @@ class FullScreenModalState extends State<FullScreenModal> {
     super.initState();
     _amountFocusNode = FocusNode()
       ..addListener(() {
-        if (!_amountFocusNode.hasFocus) _formKey.currentState?.validate();
+        if (!_amountFocusNode.hasFocus) {
+          _formKey.currentState?.validate();
+          _updateValidationState();
+        }
       });
     _expenseFocusNode = FocusNode()
       ..addListener(() {
-        if (!_expenseFocusNode.hasFocus) _formKey.currentState?.validate();
+        if (!_expenseFocusNode.hasFocus) {
+          _formKey.currentState?.validate();
+          _updateValidationState();
+        }
       });
 
-    _bankDataStream = FirebaseService().streamBankData();
+    _bankDataStream = _firebaseService.streamBankData();
     initializeBankData();
 
-    expenseTypeDataStream = FirebaseService().streamExpenseTypes();
+    expenseTypeDataStream = _firebaseService.streamExpenseTypes();
 
     expenseTypeDataStream.first.then((typesData) {
+      if (!mounted) return;
+
       final categoryMap = <String, String>{};
       final categoryNames = <String>[];
 
@@ -86,7 +100,6 @@ class FullScreenModalState extends State<FullScreenModal> {
         }
       });
 
-      // Move setModalData() here
       if (widget.expense != null && widget.expenseId != null) {
         setModalData();
       }
@@ -115,49 +128,57 @@ class FullScreenModalState extends State<FullScreenModal> {
   }
 
   void initializeBankData() {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      userBankDataStream = FirebaseService()
-          .streamGetAllData(user.email!, FirebaseConstants.userBankCollection);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-      userBankDataStream.listen((userBankData) async {
-        // Fetch all banks from the master collection
-        Map<String, dynamic> masterBanks = await _bankDataStream.first;
+    userBankDataStream = _firebaseService.streamGetAllData(
+      user.email!,
+      FirebaseConstants.userBankCollection,
+    );
 
-        List<Map<String, dynamic>> updatedUserBanks = [];
+    // Cancel any previous subscription
+    _userBankSub?.cancel();
 
-        for (var entry in userBankData.entries) {
-          final prevId = entry.value[FirebaseConstants.bankIdField];
-          final bankId = prevId == AppConstants.otherCategory
-              ? entry.value[FirebaseConstants.bankNameField]
-              : entry.value[FirebaseConstants.bankIdField];
-          final isPrimary = entry.value['isPrimary'];
-          final bankDetails = prevId == AppConstants.otherCategory
-              ? masterBanks[prevId]
-              : masterBanks[bankId];
+    // Store the subscription so we can dispose it
+    _userBankSub = userBankDataStream.listen((userBankData) async {
+      // Fetch master banks only once per update
+      final masterBanks = await _bankDataStream.first;
 
-          if (bankDetails != null) {
-            updatedUserBanks.add({
-              'id': bankId,
-              'name': prevId == AppConstants.otherCategory
-                  ? entry.value[FirebaseConstants.bankNameField]
-                  : bankDetails['name'],
-              'image': bankDetails['image'],
-              'isPrimary': isPrimary,
-            });
-          }
+      final List<Map<String, dynamic>> updatedUserBanks = [];
+
+      for (final entry in userBankData.entries) {
+        final prevId = entry.value[FirebaseConstants.bankIdField];
+        final bankId = prevId == AppConstants.otherCategory
+            ? entry.value[FirebaseConstants.bankNameField]
+            : entry.value[FirebaseConstants.bankIdField];
+
+        final bankDetails = prevId == AppConstants.otherCategory
+            ? masterBanks[prevId]
+            : masterBanks[bankId];
+
+        if (bankDetails != null) {
+          updatedUserBanks.add({
+            'id': bankId,
+            'name': prevId == AppConstants.otherCategory
+                ? entry.value[FirebaseConstants.bankNameField]
+                : bankDetails['name'],
+            'image': bankDetails['image'],
+            'isPrimary': entry.value['isPrimary'],
+          });
         }
+      }
 
-        setState(() {
-          userBanks = updatedUserBanks;
-        });
+      if (!mounted) return; // prevent setState after dispose
+
+      setState(() {
+        userBanks = updatedUserBanks;
       });
-    }
+    });
   }
 
   Future<Map<String, dynamic>> _getLatestSalaryData(
       String? selectedBankId) async {
-    final salarySnapshot = await FirebaseService()
+    final salarySnapshot = await _firebaseService
         .streamGetAllData(FirebaseAuth.instance.currentUser!.email!,
             FirebaseConstants.salaryCollection)
         .first; // Get the first snapshot
@@ -179,7 +200,9 @@ class FullScreenModalState extends State<FullScreenModal> {
     if (filteredSalaries.isNotEmpty) {
       final latestSalaryDoc = filteredSalaries.first;
       final currentAmount =
-          latestSalaryDoc.value[FirebaseConstants.currentAmountField] as double;
+          (latestSalaryDoc.value[FirebaseConstants.currentAmountField] as num?)
+                  ?.toDouble() ??
+              0.0;
       return {
         FirebaseConstants.documentIdField: latestSalaryDoc.key,
         FirebaseConstants.currentAmountField: currentAmount,
@@ -192,124 +215,130 @@ class FullScreenModalState extends State<FullScreenModal> {
     }
   }
 
+  String? _validateAmount(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Please enter an amount';
+    }
+    final n = num.tryParse(value);
+    if (n == null || n <= 0) {
+      return 'Invalid amount';
+    }
+    return null;
+  }
+
+  String? _validateExpenseType(String? value) {
+    if (_selectedExpenseCategory == AppConstants.otherCategory &&
+        (value == null || value.trim().isEmpty)) {
+      return 'Please enter an expense type';
+    }
+    return null;
+  }
+
+  void _updateValidationState() {
+    final isAmountValid = _validateAmount(_amountController.text) == null;
+    final isExpenseTypeValid =
+        _validateExpenseType(_expenseController.text) == null;
+
+    if (_isAmountValid == isAmountValid &&
+        _isExpenseTypeValid == isExpenseTypeValid) {
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isAmountValid = isAmountValid;
+      _isExpenseTypeValid = isExpenseTypeValid;
+    });
+  }
+
   Future<void> _submit() async {
-    if (_formKey.currentState!.validate() && _selectedBankId != null) {
-      double amount = double.parse(_amountController.text);
-      final expenseType = _expenseController.text.isNotEmpty
-          ? _expenseController.text
-          : _selectedExpenseCategory;
+    final isValid = _formKey.currentState?.validate() ?? false;
+    _updateValidationState();
 
-      // Get the signed-in user's email
-      User? user = FirebaseAuth.instance.currentUser;
-      if (user == null || user.email == null) {
-        showToast('User not signed in.');
-        return;
-      }
-      String userEmail = user.email ?? "";
-
-      final isEditMode = widget.expenseId != null && widget.expense != null;
-
-      String salaryDocumentId;
-      double currentAmount;
-
-      if (isEditMode) {
-        // Get salary document used in the previous expense
-        salaryDocumentId =
-            widget.expense![FirebaseConstants.salaryDocumentIdField];
-
-        final salaryDoc = await FirebaseService()
-            .streamGetDataInUserById(
-              userEmail,
-              FirebaseConstants.salaryCollection,
-              salaryDocumentId,
-            )
-            .first;
-
-        currentAmount =
-            salaryDoc[FirebaseConstants.currentAmountField] as double;
-
-        // Restore previous expense impact before applying new one
-        double previousAmount =
-            widget.expense![FirebaseConstants.amountField] as double;
-        String previousTransactionType =
-            widget.expense![FirebaseConstants.transactionTypeField];
-
-        if (previousTransactionType == AppConstants.transactionTypeWithdraw ||
-            previousTransactionType == AppConstants.transactionTypeTransfer) {
-          currentAmount += previousAmount; // refund
-        } else if (previousTransactionType ==
-            AppConstants.transactionTypeDeposit) {
-          currentAmount -= previousAmount; // deduct deposit
-        }
-      } else {
-        // Get the latest salary document for new expense
-        Map<String, dynamic> latestSalaryData =
-            await _getLatestSalaryData(_selectedBankId);
-
-        salaryDocumentId = latestSalaryData[FirebaseConstants.documentIdField];
-        currentAmount = latestSalaryData[FirebaseConstants.currentAmountField];
-      }
-
-      // Apply new transaction impact on salary (common for both edit and add)
-      double updatedAmount = currentAmount;
-      if (_selectedTransactionType == AppConstants.transactionTypeWithdraw ||
-          _selectedTransactionType == AppConstants.transactionTypeTransfer) {
-        if (currentAmount < amount) {
-          showToast('Insufficient balance in salary.');
-          return;
-        }
-        updatedAmount -= amount;
-      } else if (_selectedTransactionType ==
-          AppConstants.transactionTypeDeposit) {
-        updatedAmount += amount;
-      }
-
-      // Use existing document ID in edit mode
-      final documentId = isEditMode
-          ? widget.expenseId!
-          : "${DateTime.now().toIso8601String()}_$amount";
-
-      // Prepare the data to be stored
-      Map<String, dynamic> expenseData = {
-        FirebaseConstants.amountField: amount,
-        FirebaseConstants.bankIdField: _selectedBankId,
-        FirebaseConstants.expenseField: expenseType,
-        FirebaseConstants.transactionTypeField: _selectedTransactionType,
-        FirebaseConstants.expenseCategoryField: _selectedExpenseCategoryId ??
-            _selectedExpenseCategory?.toLowerCase(),
-        FirebaseConstants.timestampField: DateTime.now(),
-        FirebaseConstants.salaryDocumentIdField: salaryDocumentId,
-      };
-
-      // ✅ Update the salary document amount
-      await FirebaseService().updateSalaryAmount(
-        userEmail,
-        salaryDocumentId,
-        updatedAmount,
-      );
-
-      // Add or update expense document
-      if (isEditMode) {
-        await FirebaseService().updatedExpenseData(
-          userEmail,
-          documentId,
-          expenseData,
-          FirebaseConstants.expenseCollection,
-        );
-      } else {
-        await FirebaseService().addData(
-          userEmail,
-          documentId,
-          expenseData,
-          FirebaseConstants.expenseCollection,
-        );
-      }
-
-      Navigator.of(context).pop(AppConstants.refresh);
-    } else {
+    if (!isValid || _selectedBankId == null) {
       if (_selectedBankId == null) {
         showToast('Please select a bank.');
       }
+      return;
+    }
+
+    final amount = num.tryParse(_amountController.text.trim())?.toDouble();
+    if (amount == null || amount <= 0) {
+      showToast('Please enter a valid amount.');
+      return;
+    }
+
+    final customExpense = _expenseController.text.trim();
+    final expenseType =
+        customExpense.isNotEmpty ? customExpense : _selectedExpenseCategory;
+    if (expenseType == null || expenseType.isEmpty) {
+      showToast('Please enter an expense type.');
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.email == null) {
+      showToast('User not signed in.');
+      return;
+    }
+    final userEmail = user.email!;
+
+    final isEditMode = widget.expenseId != null && widget.expense != null;
+
+    String salaryDocumentId =
+        widget.expense?[FirebaseConstants.salaryDocumentIdField] ?? '';
+    final originalBankId = widget.expense?[FirebaseConstants.bankIdField];
+    final hasBankChanged = isEditMode && originalBankId != _selectedBankId;
+
+    if (!isEditMode || hasBankChanged) {
+      final latestSalaryData = await _getLatestSalaryData(_selectedBankId);
+      salaryDocumentId = latestSalaryData[FirebaseConstants.documentIdField];
+    }
+
+    if ((!isEditMode || hasBankChanged) && salaryDocumentId.isEmpty) {
+      showToast('Please add salary for the selected bank first.');
+      return;
+    }
+
+    final documentId = isEditMode
+        ? widget.expenseId!
+        : "${DateTime.now().toIso8601String()}_$amount";
+
+    final expenseData = <String, dynamic>{
+      FirebaseConstants.amountField: amount,
+      FirebaseConstants.bankIdField: _selectedBankId,
+      FirebaseConstants.expenseField: expenseType,
+      FirebaseConstants.transactionTypeField: _selectedTransactionType,
+      FirebaseConstants.expenseCategoryField:
+          _selectedExpenseCategoryId ?? _selectedExpenseCategory?.toLowerCase(),
+      FirebaseConstants.timestampField: DateTime.now(),
+    };
+    if (!isEditMode || hasBankChanged) {
+      expenseData[FirebaseConstants.salaryDocumentIdField] = salaryDocumentId;
+    }
+
+    try {
+      if (isEditMode) {
+        await _firebaseService.updateExpenseWithSalaryUpdate(
+          userEmail: userEmail,
+          expenseDocumentId: documentId,
+          updatedExpenseData: expenseData,
+        );
+      } else {
+        await _firebaseService.addExpenseWithSalaryUpdate(
+          userEmail: userEmail,
+          salaryDocumentId: salaryDocumentId,
+          expenseDocumentId: documentId,
+          expenseData: expenseData,
+        );
+      }
+
+      if (!mounted) return;
+      Navigator.of(context).pop(AppConstants.refresh);
+    } on StateError catch (e) {
+      showToast(e.message.toString());
+    } catch (e) {
+      showToast('Failed to save expense. Please try again.');
     }
   }
 
@@ -329,6 +358,57 @@ class FullScreenModalState extends State<FullScreenModal> {
     setState(() {
       _isFormChanged = isChanged;
     });
+  }
+
+  Future<bool> _showImportConfirmation(int count) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return CommonDialog(
+          title: 'Confirm CSV Import',
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$count transactions detected.',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'This will update your salary balance.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Do you want to continue?',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+          primaryActionText: 'Import',
+          cancelText: 'Cancel',
+          onPrimaryAction: () {
+            Navigator.of(context).pop(true);
+          },
+        );
+      },
+    );
+
+    return result ?? false;
+  }
+
+  @override
+  void dispose() {
+    // CANCEL STREAM SUBSCRIPTION
+    _userBankSub?.cancel();
+
+    _amountFocusNode.dispose();
+    _expenseFocusNode.dispose();
+    _amountController.dispose();
+    _expenseController.dispose();
+    super.dispose();
   }
 
   @override
@@ -428,27 +508,10 @@ class FullScreenModalState extends State<FullScreenModal> {
                               cursorColor: AppColors.secondary,
                               onChanged: (value) {
                                 _formKey.currentState?.validate();
+                                _updateValidationState();
                                 checkFormChanged();
                               },
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  setState(() {
-                                    _isAmountValid = false;
-                                  });
-                                  return 'Please enter an amount';
-                                }
-                                final n = num.tryParse(value);
-                                if (n == null) {
-                                  setState(() {
-                                    _isAmountValid = false;
-                                  });
-                                  return 'Invalid amount';
-                                }
-                                setState(() {
-                                  _isAmountValid = true;
-                                });
-                                return null;
-                              },
+                              validator: _validateAmount,
                             ),
                             const SizedBox(height: 20),
                             DropdownButtonFormField<String>(
@@ -457,7 +520,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                                 FontAwesomeIcons.moneyBillTransfer,
                                 color: theme.iconTheme.color,
                               ),
-                              value: _selectedExpenseCategory,
+                              initialValue: _selectedExpenseCategory,
                               items: _expenseCategoryNames.map((String name) {
                                 return DropdownMenuItem<String>(
                                   value: name,
@@ -477,6 +540,8 @@ class FullScreenModalState extends State<FullScreenModal> {
                                         _selectedExpenseCategory!;
                                   }
                                 });
+                                _formKey.currentState?.validate();
+                                _updateValidationState();
                                 checkFormChanged();
                               },
                               decoration: InputDecoration(
@@ -516,22 +581,10 @@ class FullScreenModalState extends State<FullScreenModal> {
                               cursorColor: AppColors.secondary,
                               onChanged: (value) {
                                 _formKey.currentState?.validate();
+                                _updateValidationState();
                                 checkFormChanged();
                               },
-                              validator: (value) {
-                                if (_selectedExpenseCategory ==
-                                        AppConstants.otherCategory &&
-                                    (value == null || value.isEmpty)) {
-                                  setState(() {
-                                    _isExpenseTypeValid = false;
-                                  });
-                                  return 'Please enter an expense type';
-                                }
-                                setState(() {
-                                  _isExpenseTypeValid = true;
-                                });
-                                return null;
-                              },
+                              validator: _validateExpenseType,
                             ),
                             const SizedBox(height: 20),
                             DropdownButtonFormField<String>(
@@ -540,7 +593,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                                 FontAwesomeIcons.moneyBillTransfer,
                                 color: theme.iconTheme.color,
                               ),
-                              value: _selectedTransactionType,
+                              initialValue: _selectedTransactionType,
                               items: _transactionTypes.map((String type) {
                                 return DropdownMenuItem<String>(
                                   value: type,
@@ -566,42 +619,41 @@ class FullScreenModalState extends State<FullScreenModal> {
                                   )),
                             ),
                             const SizedBox(height: 20),
-                              Wrap(
-                                spacing: 8.0,
-                                runSpacing: 4.0,
-                                children: userBanks
-                                    .map<Widget>((entry) => ChoiceChip(
-                                          showCheckmark: false,
-                                          avatar: Image.network(entry['image']),
-                                          label: Text(entry['name']),
-                                          labelStyle: TextStyle(
-                                            color:
-                                                _selectedBankId == entry['id']
-                                                    ? Colors.white
-                                                    : theme.textTheme.bodyLarge!
-                                                        .color,
-                                          ),
-                                          selectedColor: AppColors.secondary,
-                                          backgroundColor:
-                                              customTheme!.chipBackgroundColor,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(50.0),
-                                          ),
-                                          selected: _selectedBankId ==
-                                              entry[
-                                                  'id'], // Compare document ID
-                                          onSelected: (selected) {
-                                            setState(() {
-                                              _selectedBankId = selected
-                                                  ? entry['id']
-                                                  // Store document ID
-                                                  : null;
-                                            });
-                                          },
-                                        ))
-                                    .toList(),
-                              )
+                            Wrap(
+                              spacing: 8.0,
+                              runSpacing: 4.0,
+                              children: userBanks
+                                  .map<Widget>((entry) => ChoiceChip(
+                                        showCheckmark: false,
+                                        avatar: Image.network(entry['image']),
+                                        label: Text(entry['name']),
+                                        labelStyle: TextStyle(
+                                          color: _selectedBankId == entry['id']
+                                              ? Colors.white
+                                              : theme
+                                                  .textTheme.bodyLarge!.color,
+                                        ),
+                                        selectedColor: AppColors.secondary,
+                                        backgroundColor:
+                                            customTheme!.chipBackgroundColor,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(50.0),
+                                        ),
+                                        selected: _selectedBankId ==
+                                            entry['id'], // Compare document ID
+                                        onSelected: (selected) {
+                                          setState(() {
+                                            _selectedBankId = selected
+                                                ? entry['id']
+                                                // Store document ID
+                                                : null;
+                                          });
+                                          checkFormChanged();
+                                        },
+                                      ))
+                                  .toList(),
+                            )
                           ],
                         );
                       }
@@ -613,8 +665,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                   width: 200,
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: ElevatedButton(
-                    onPressed: (_formKey.currentState?.validate() ?? false) &&
-                            _isFormChanged
+                    onPressed: _selectedBankId != null && _isFormChanged
                         ? _submit
                         : null,
                     style: ButtonStyle(
@@ -629,7 +680,70 @@ class FullScreenModalState extends State<FullScreenModal> {
                 ),
                 const SizedBox(
                   height: 10,
-                )
+                ),
+                ElevatedButton.icon(
+                  icon: const Icon(FontAwesomeIcons.fileCsv),
+                  label: const Text('Import CSV'),
+                  style: ButtonStyle(
+                    backgroundColor:
+                        WidgetStateProperty.all(AppColors.secondaryGreen),
+                  ),
+                  onPressed: _selectedBankId == null
+                      ? null
+                      : () async {
+                          try {
+                            final importer = CsvTransactionImporter();
+                            final latestSalary =
+                                await _getLatestSalaryData(_selectedBankId);
+                            final salaryDocumentId =
+                                latestSalary[FirebaseConstants.documentIdField]
+                                    as String;
+
+                            if (salaryDocumentId.isEmpty) {
+                              showToast(
+                                  'Please add salary for the selected bank first.');
+                              return;
+                            }
+
+                            final imported = await importer.importCsv(
+                              selectedBankId: _selectedBankId!,
+                              expenseCategoryMap: _expenseCategoryMap,
+                              salaryDocumentId: salaryDocumentId,
+                            );
+
+                            if (imported.isEmpty) {
+                              showToast('No valid transactions found');
+                              return;
+                            }
+
+                            final confirmed =
+                                await _showImportConfirmation(imported.length);
+
+                            if (!confirmed) return;
+
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user == null || user.email == null) {
+                              showToast('User not signed in');
+                              return;
+                            }
+
+                            await _firebaseService
+                                .importExpensesWithSalaryUpdate(
+                              userEmail: user.email!,
+                              salaryDocumentId: salaryDocumentId,
+                              expenses: imported,
+                            );
+
+                            showToast(
+                                '${imported.length} transactions imported');
+
+                            if (!context.mounted) return;
+                            Navigator.of(context).pop(AppConstants.refresh);
+                          } catch (e) {
+                            showToast(e.toString());
+                          }
+                        },
+                ),
               ],
             ),
           ),
