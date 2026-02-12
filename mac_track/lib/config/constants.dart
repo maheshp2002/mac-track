@@ -12,6 +12,8 @@ class AppConstants {
   static const String reminderMonthly = 'Monthly';
   static const String reminderYearly = 'Yearly';
   static const String reminderCustom = 'Custom';
+  static const String transaction = 'Transaction';
+  static const String balance = 'Balance';
 }
 
 class FirebaseConstants {
@@ -25,6 +27,8 @@ class FirebaseConstants {
   static const String expenseTypesCollection = 'expenseTypes';
 
   //Firebase Fields
+  static const String primaryIdField = 'id';
+  static const String nameField = 'name';
   static const String amountField = 'amount';
   static const String documentIdField = 'documentId';
   static const String currentAmountField = 'currentAmount';
@@ -41,4 +45,5 @@ class FirebaseConstants {
   static const String reminderTimeField = "reminderTime";
   static const String isReminder = "isReminder";
   static const String isReminderCompletedField = "isReminderCompleted";
+  static const String imageField = 'image';
 }

@@ -91,7 +91,7 @@ class HomePageState extends State<HomePage> {
             ? entry.value[FirebaseConstants.bankNameField]
             : entry.value[FirebaseConstants.bankIdField];
 
-        final isPrimary = entry.value['isPrimary'];
+        final isPrimary = entry.value[FirebaseConstants.isPrimaryField];
 
         final bankDetails = prevId == AppConstants.otherCategory
             ? masterBanks[prevId]
@@ -99,13 +99,13 @@ class HomePageState extends State<HomePage> {
 
         if (bankDetails != null) {
           updatedUserBanks.add({
-            'id': bankId,
-            'name': prevId == AppConstants.otherCategory
+            FirebaseConstants.primaryIdField: bankId,
+            FirebaseConstants.nameField: prevId == AppConstants.otherCategory
                 ? entry.value[FirebaseConstants.bankNameField]
-                : bankDetails['name'],
-            'image': bankDetails['image'],
-            'isPrimary': isPrimary,
-            'documentId': documentId,
+                : bankDetails[FirebaseConstants.nameField],
+            FirebaseConstants.imageField: bankDetails[FirebaseConstants.imageField],
+            FirebaseConstants.isPrimaryField: isPrimary,
+            FirebaseConstants.documentIdField: documentId,
           });
 
           if (isPrimary == true) {
@@ -116,17 +116,17 @@ class HomePageState extends State<HomePage> {
 
       // Add "Add Bank" button
       updatedUserBanks.add({
-        'id': 'add',
-        'name': AppConstants.addNewBankLabel,
-        'image': '',
-        'isPrimary': false,
-        'documentId': '',
+        FirebaseConstants.primaryIdField: 'add',
+        FirebaseConstants.nameField: AppConstants.addNewBankLabel,
+        FirebaseConstants.imageField: '',
+        FirebaseConstants.isPrimaryField: false,
+        FirebaseConstants.documentIdField: '',
       });
 
       setState(() {
         userBanks = updatedUserBanks;
 
-        final existingBankIds = updatedUserBanks.map((b) => b['id']).toList();
+        final existingBankIds = updatedUserBanks.map((b) => b[FirebaseConstants.primaryIdField]).toList();
 
         if (!existingBankIds.contains(selectedBankId)) {
           selectedBankId = primaryBankId;
@@ -259,7 +259,7 @@ class HomePageState extends State<HomePage> {
               }
 
               final filteredBanks =
-                  userBanks.where((bank) => bank['id'] != 'add').toList();
+                  userBanks.where((bank) => bank[FirebaseConstants.primaryIdField] != 'add').toList();
 
               return Stack(
                 children: [
@@ -267,14 +267,14 @@ class HomePageState extends State<HomePage> {
                     itemCount: filteredBanks.length,
                     itemBuilder: (context, index) {
                       final entry = filteredBanks[index];
-                      final image = entry['image'] ?? '';
-                      final name = entry['name'] ?? '';
-                      final bool isPrimary = entry['isPrimary'] == true;
+                      final image = entry[FirebaseConstants.imageField] ?? '';
+                      final name = entry[FirebaseConstants.nameField] ?? '';
+                      final bool isPrimary = entry[FirebaseConstants.isPrimaryField] == true;
 
                       return ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Slidable(
-                          key: ValueKey(entry['documentId']),
+                          key: ValueKey(entry[FirebaseConstants.documentIdField]),
                           endActionPane: ActionPane(
                             motion: const DrawerMotion(),
                             extentRatio: 0.3,
@@ -335,12 +335,12 @@ class HomePageState extends State<HomePage> {
                                       onPrimaryAction: () async {
                                         Navigator.of(ctx).pop();
 
-                                        final String bankName = entry['name'];
+                                        final String bankName = entry[FirebaseConstants.nameField];
 
                                         // 1. Fetch salaries
                                         final salarySnapshot =
                                             await FirebaseFirestore.instance
-                                                .collection('users')
+                                                .collection(FirebaseConstants.userBankCollection)
                                                 .doc(userEmail)
                                                 .collection(FirebaseConstants
                                                     .salaryCollection)
@@ -348,14 +348,14 @@ class HomePageState extends State<HomePage> {
 
                                         final salaryDocs =
                                             salarySnapshot.docs.where((doc) {
-                                          return doc.data()['bankId'] ==
+                                          return doc.data()[FirebaseConstants.bankIdField] ==
                                               bankName;
                                         }).toList();
 
                                         // 2. Fetch expenses
                                         final expenseSnapshot =
                                             await FirebaseFirestore.instance
-                                                .collection('users')
+                                                .collection(FirebaseConstants.userBankCollection)
                                                 .doc(userEmail)
                                                 .collection(FirebaseConstants
                                                     .expenseCollection)
@@ -365,8 +365,8 @@ class HomePageState extends State<HomePage> {
                                           for (final expenseDoc
                                               in expenseSnapshot.docs) {
                                             final data = expenseDoc.data();
-                                            if (data['bankId'] == bankName &&
-                                                data['salaryDocumentId'] ==
+                                            if (data[FirebaseConstants.bankIdField] == bankName &&
+                                                data[FirebaseConstants.salaryDocumentIdField] ==
                                                     salaryDoc.id) {
                                               await firebaseService
                                                   .deleteExpenseData(
@@ -388,7 +388,7 @@ class HomePageState extends State<HomePage> {
 
                                         await firebaseService.deleteExpenseData(
                                           userEmail,
-                                          entry['documentId'],
+                                          entry[FirebaseConstants.documentIdField],
                                           FirebaseConstants.userBankCollection,
                                         );
 
@@ -441,17 +441,17 @@ class HomePageState extends State<HomePage> {
                                       });
 
                                       for (final bank in filteredBanks) {
-                                        if (bank['isPrimary'] == true) {
+                                        if (bank[FirebaseConstants.isPrimaryField] == true) {
                                           await firebaseService
                                               .updateDocumentFieldString(
                                             userEmail,
                                             FirebaseConstants
                                                 .userBankCollection,
-                                            bank['documentId'],
+                                            bank[FirebaseConstants.documentIdField],
                                             FirebaseConstants.isPrimaryField,
                                             false,
                                           );
-                                          bank['isPrimary'] = false;
+                                          bank[FirebaseConstants.isPrimaryField] = false;
                                         }
                                       }
 
@@ -459,13 +459,13 @@ class HomePageState extends State<HomePage> {
                                           .updateDocumentFieldString(
                                         userEmail,
                                         FirebaseConstants.userBankCollection,
-                                        entry['documentId'],
+                                        entry[FirebaseConstants.documentIdField],
                                         FirebaseConstants.isPrimaryField,
                                         true,
                                       );
 
                                       setStateDialog(() {
-                                        entry['isPrimary'] = true;
+                                        entry[FirebaseConstants.isPrimaryField] = true;
                                         isUpdating = false;
                                       });
 
@@ -527,19 +527,19 @@ class HomePageState extends State<HomePage> {
                     ),
                     items: userBanks.map((bank) {
                       return DropdownMenuItem<String>(
-                        value: bank['id'],
+                        value: bank[FirebaseConstants.primaryIdField],
                         child: Row(
                           children: [
                             Text(
-                              bank['name'],
+                              bank[FirebaseConstants.nameField],
                               style: theme.textTheme.bodyLarge!.copyWith(
                                 color:
-                                    bank['name'] == AppConstants.addNewBankLabel
+                                    bank[FirebaseConstants.nameField] == AppConstants.addNewBankLabel
                                         ? AppColors.primaryGreen
                                         : theme.textTheme.bodyLarge!.color,
                               ),
                             ),
-                            if (bank['name'] == AppConstants.addNewBankLabel)
+                            if (bank[FirebaseConstants.nameField] == AppConstants.addNewBankLabel)
                               const Padding(
                                 padding: EdgeInsets.only(left: 4),
                                 child: Icon(
@@ -662,16 +662,16 @@ class HomePageState extends State<HomePage> {
 
   Widget _buildSalaryWidget(String formattedSalaryAmount, ThemeData theme) {
     final fallbackBank = {
-      'image': 'assets/logo/black.png',
-      'name': 'Select Bank',
+      FirebaseConstants.imageField: 'assets/logo/black.png',
+      FirebaseConstants.nameField: 'Select Bank',
     };
 
     final selectedBank = userBanks.firstWhere(
-      (bank) => bank['id'] == selectedBankId,
+      (bank) => bank[FirebaseConstants.primaryIdField] == selectedBankId,
       orElse: () => fallbackBank,
     );
 
-    final imagePath = selectedBank['image'] ?? '';
+    final imagePath = selectedBank[FirebaseConstants.imageField] ?? '';
     final isNetworkImage = imagePath.toString().startsWith('http');
 
     return SlideInAnimation(
@@ -716,7 +716,7 @@ class HomePageState extends State<HomePage> {
                           : Image.asset(imagePath, width: 24, height: 24),
                       const SizedBox(width: 8),
                       Text(
-                        selectedBank['name'] ?? 'Select Bank',
+                        selectedBank[FirebaseConstants.nameField] ?? 'Select Bank',
                         style: const TextStyle(fontSize: 16),
                       ),
                     ],
@@ -833,8 +833,8 @@ class HomePageState extends State<HomePage> {
                         initialLabelIndex: _currentToggleIndex,
                         totalSwitches: 2,
                         labels: _currentToggleIndex == 0
-                            ? ['Transaction', '']
-                            : ['', 'Balance'],
+                            ? [AppConstants.transaction, '']
+                            : ['', AppConstants.balance],
                         customIcons: [
                           _currentToggleIndex == 0
                               ? null
@@ -1107,7 +1107,7 @@ class HomePageState extends State<HomePage> {
                               final categoryId = expense[
                                   FirebaseConstants.expenseCategoryField];
                               final categoryInfo = expenseTypes[categoryId];
-                              final categoryImage = categoryInfo?['image'] ??
+                              final categoryImage = categoryInfo?[FirebaseConstants.imageField] ??
                                   'assets/images/other-expenses.png';
 
                               return Slidable(
