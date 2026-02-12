@@ -5,19 +5,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:mac_track/components/setReminder.dart';
+import 'package:mac_track/components/common_app_bar.dart';
+import 'package:mac_track/components/full_screen_modal.dart';
+import 'package:mac_track/components/list_card.dart';
+import 'package:mac_track/components/set_reminder.dart';
+import 'package:mac_track/components/slide_in_animation.dart';
+import 'package:mac_track/components/theme_manager.dart';
 import 'package:mac_track/config/constants.dart';
+import 'package:mac_track/services/firebase_service.dart';
+import 'package:mac_track/ui/theme.dart';
 import 'package:provider/provider.dart';
 import 'package:toggle_switch/toggle_switch.dart';
-import 'components/commonAppBar.dart';
-import 'components/fullScreenModal.dart';
-import 'components/listCard.dart';
 import 'components/navbar.dart';
-import 'components/slideInAnimation.dart';
-import 'components/themeManager.dart';
 import 'components/toast.dart';
-import 'services/firebaseService.dart';
-import 'theme.dart';
 import 'package:intl/intl.dart';
 
 class HomePage extends StatefulWidget {
