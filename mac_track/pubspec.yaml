@@ -67,6 +67,7 @@ dependencies:
   timezone: ^0.10.0
   flutter_local_notifications: ^19.3.0
   file_picker: ^10.3.10
+  rxdart: ^0.28.0
 
 dev_dependencies:
   flutter_test:
@@ -98,6 +99,7 @@ flutter:
     - assets/logo/
     - assets/Backgrounds/
     - assets/RiveAssets/
+    - assets/images/expenses/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

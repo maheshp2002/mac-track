@@ -6,21 +6,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:mac_track/components/set_reminder.dart';
+import 'package:mac_track/ui/components/set_reminder.dart';
 import 'package:mac_track/config/constants.dart';
 import 'package:mac_track/ui/dialogues/add_bank.dart';
-import 'package:mac_track/ui/dialogues/add_salary.dart';
+import 'package:mac_track/ui/dialogues/manage_salary_dialog.dart';
 import 'package:mac_track/ui/widgets/common_dialog.dart';
 import 'package:mac_track/ui/widgets/filter_container.dart';
 import 'package:provider/provider.dart';
 import 'package:toggle_switch/toggle_switch.dart';
-import '../components/common_app_bar.dart';
-import '../components/full_screen_modal.dart';
-import '../components/list_card.dart';
-import '../components/navbar.dart';
-import '../components/slide_in_animation.dart';
-import '../components/theme_manager.dart';
-import '../components/toast.dart';
+import 'components/common_app_bar.dart';
+import 'components/full_screen_modal.dart';
+import 'components/list_card.dart';
+import 'components/navbar.dart';
+import 'components/slide_in_animation.dart';
+import 'components/theme_manager.dart';
+import 'components/toast.dart';
 import '../services/firebase_service.dart';
 import 'theme.dart';
 import 'package:intl/intl.dart';
@@ -34,11 +34,10 @@ class HomePage extends StatefulWidget {
 
 class HomePageState extends State<HomePage> {
   int _currentToggleIndex = 0;
-  late Stream<Map<String, dynamic>> expenseDataStream = Stream.value({});
+  bool _isFlipped = false;
   late Stream<Map<String, dynamic>> bankDataStream;
   late Stream<Map<String, dynamic>> userBankDataStream;
   late Stream<Map<String, dynamic>> expenseTypesStream;
-  late Stream<Map<String, dynamic>> salaryDataStream = Stream.value({});
   List<Map<String, dynamic>> userBanks = [];
   String? selectedBankId;
   String userEmail = "";
@@ -103,7 +102,8 @@ class HomePageState extends State<HomePage> {
             FirebaseConstants.nameField: prevId == AppConstants.otherCategory
                 ? entry.value[FirebaseConstants.bankNameField]
                 : bankDetails[FirebaseConstants.nameField],
-            FirebaseConstants.imageField: bankDetails[FirebaseConstants.imageField],
+            FirebaseConstants.imageField:
+                bankDetails[FirebaseConstants.imageField],
             FirebaseConstants.isPrimaryField: isPrimary,
             FirebaseConstants.documentIdField: documentId,
           });
@@ -126,108 +126,24 @@ class HomePageState extends State<HomePage> {
       setState(() {
         userBanks = updatedUserBanks;
 
-        final existingBankIds = updatedUserBanks.map((b) => b[FirebaseConstants.primaryIdField]).toList();
+        final existingBankIds = updatedUserBanks
+            .map((b) => b[FirebaseConstants.primaryIdField])
+            .toList();
 
         if (!existingBankIds.contains(selectedBankId)) {
           selectedBankId = primaryBankId;
         }
 
-        if (selectedBankId != null) {
-          _changeBank(selectedBankId!);
-        }
+        selectedBankId ??= primaryBankId;
       });
 
       if (callback != null) callback();
     });
   }
 
-  void _updateSalaryStream() async {
-    final email = FirebaseAuth.instance.currentUser!.email!;
-    final stream = firebaseService.streamGetAllData(
-      email,
-      FirebaseConstants.salaryCollection,
-    );
-
-    if (_currentToggleIndex != 0) {
-      // Balance view – only show latest salary and its expenses
-      stream.first.then((data) {
-        final filtered = data.values
-            .where(
-                (doc) => doc[FirebaseConstants.bankIdField] == selectedBankId)
-            .toList();
-
-        filtered.sort((a, b) {
-          final aTime = a[FirebaseConstants.timestampField]?.toDate();
-          final bTime = b[FirebaseConstants.timestampField]?.toDate();
-          return bTime.compareTo(aTime);
-        });
-
-        final latestSalary = filtered.isNotEmpty ? filtered.first : null;
-
-        if (latestSalary != null) {
-          final latestSalaryId = data.entries
-              .firstWhere((entry) => entry.value == latestSalary)
-              .key;
-
-          _updateExpenseStream(selectedBankId!, latestSalaryId);
-          // Update salaryDataStream for UI
-          salaryDataStream = Stream.value(latestSalary);
-        } else {
-          // fallback
-          salaryDataStream = Stream.value({});
-        }
-        setState(() {});
-      });
-    } else {
-      // Transaction view – show all salaries + all expenses
-      salaryDataStream = stream.map((data) {
-        final filtered = data.values
-            .where(
-                (doc) => doc[FirebaseConstants.bankIdField] == selectedBankId)
-            .toList();
-
-        double totalSalary = 0;
-        for (var entry in filtered) {
-          totalSalary += (entry[FirebaseConstants.currentAmountField] ?? 0.0);
-        }
-
-        setState(() {
-          currentBalance = NumberFormat.currency(
-            locale: 'en_IN',
-            symbol: '₹',
-            decimalDigits: 0,
-          ).format(totalSalary);
-        });
-
-        _updateExpenseStream(selectedBankId!);
-        return {};
-      });
-    }
-  }
-
-  void _updateExpenseStream(String bankId, [String? salaryId]) {
-    expenseDataStream = firebaseService
-        .streamGetAllData(userEmail, FirebaseConstants.expenseCollection)
-        .map((expenseData) {
-      final filteredExpenses = expenseData.entries
-          .where((entry) {
-            final data = entry.value;
-            final matchesBank = data[FirebaseConstants.bankIdField] == bankId;
-            final matchesSalary = salaryId == null ||
-                data[FirebaseConstants.salaryDocumentIdField] == salaryId;
-            return matchesBank && matchesSalary;
-          })
-          .map((e) => MapEntry(e.key, e.value))
-          .toList();
-
-      return Map.fromEntries(filteredExpenses);
-    });
-  }
-
   void _changeBank(String bankId) {
     setState(() {
       selectedBankId = bankId;
-      _updateSalaryStream();
     });
   }
 
@@ -258,8 +174,10 @@ class HomePageState extends State<HomePage> {
                 setStateDialog(() {});
               }
 
-              final filteredBanks =
-                  userBanks.where((bank) => bank[FirebaseConstants.primaryIdField] != 'add').toList();
+              final filteredBanks = userBanks
+                  .where(
+                      (bank) => bank[FirebaseConstants.primaryIdField] != 'add')
+                  .toList();
 
               return Stack(
                 children: [
@@ -269,12 +187,14 @@ class HomePageState extends State<HomePage> {
                       final entry = filteredBanks[index];
                       final image = entry[FirebaseConstants.imageField] ?? '';
                       final name = entry[FirebaseConstants.nameField] ?? '';
-                      final bool isPrimary = entry[FirebaseConstants.isPrimaryField] == true;
+                      final bool isPrimary =
+                          entry[FirebaseConstants.isPrimaryField] == true;
 
                       return ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Slidable(
-                          key: ValueKey(entry[FirebaseConstants.documentIdField]),
+                          key: ValueKey(
+                              entry[FirebaseConstants.documentIdField]),
                           endActionPane: ActionPane(
                             motion: const DrawerMotion(),
                             extentRatio: 0.3,
@@ -335,60 +255,40 @@ class HomePageState extends State<HomePage> {
                                       onPrimaryAction: () async {
                                         Navigator.of(ctx).pop();
 
-                                        final String bankName = entry[FirebaseConstants.nameField];
+                                        final String bankName =
+                                            entry[FirebaseConstants.nameField];
 
-                                        // 1. Fetch salaries
-                                        final salarySnapshot =
-                                            await FirebaseFirestore.instance
-                                                .collection(FirebaseConstants.userBankCollection)
-                                                .doc(userEmail)
-                                                .collection(FirebaseConstants
-                                                    .salaryCollection)
-                                                .get();
-
-                                        final salaryDocs =
-                                            salarySnapshot.docs.where((doc) {
-                                          return doc.data()[FirebaseConstants.bankIdField] ==
-                                              bankName;
-                                        }).toList();
-
-                                        // 2. Fetch expenses
+                                        // 1. Fetch expenses
                                         final expenseSnapshot =
                                             await FirebaseFirestore.instance
-                                                .collection(FirebaseConstants.userBankCollection)
+                                                .collection(FirebaseConstants
+                                                    .usersCollection)
                                                 .doc(userEmail)
                                                 .collection(FirebaseConstants
                                                     .expenseCollection)
                                                 .get();
 
-                                        for (final salaryDoc in salaryDocs) {
-                                          for (final expenseDoc
-                                              in expenseSnapshot.docs) {
-                                            final data = expenseDoc.data();
-                                            if (data[FirebaseConstants.bankIdField] == bankName &&
-                                                data[FirebaseConstants.salaryDocumentIdField] ==
-                                                    salaryDoc.id) {
-                                              await firebaseService
-                                                  .deleteExpenseData(
-                                                userEmail,
-                                                expenseDoc.id,
-                                                FirebaseConstants
-                                                    .expenseCollection,
-                                              );
-                                            }
-                                          }
+                                        for (final expenseDoc
+                                            in expenseSnapshot.docs) {
+                                          final data = expenseDoc.data();
 
-                                          await firebaseService
-                                              .deleteExpenseData(
-                                            userEmail,
-                                            salaryDoc.id,
-                                            FirebaseConstants.salaryCollection,
-                                          );
+                                          if (data[FirebaseConstants
+                                                  .bankIdField] ==
+                                              bankName) {
+                                            await firebaseService
+                                                .deleteExpenseData(
+                                              userEmail,
+                                              expenseDoc.id,
+                                              FirebaseConstants
+                                                  .expenseCollection,
+                                            );
+                                          }
                                         }
 
                                         await firebaseService.deleteExpenseData(
                                           userEmail,
-                                          entry[FirebaseConstants.documentIdField],
+                                          entry[FirebaseConstants
+                                              .documentIdField],
                                           FirebaseConstants.userBankCollection,
                                         );
 
@@ -441,17 +341,21 @@ class HomePageState extends State<HomePage> {
                                       });
 
                                       for (final bank in filteredBanks) {
-                                        if (bank[FirebaseConstants.isPrimaryField] == true) {
+                                        if (bank[FirebaseConstants
+                                                .isPrimaryField] ==
+                                            true) {
                                           await firebaseService
                                               .updateDocumentFieldString(
                                             userEmail,
                                             FirebaseConstants
                                                 .userBankCollection,
-                                            bank[FirebaseConstants.documentIdField],
+                                            bank[FirebaseConstants
+                                                .documentIdField],
                                             FirebaseConstants.isPrimaryField,
                                             false,
                                           );
-                                          bank[FirebaseConstants.isPrimaryField] = false;
+                                          bank[FirebaseConstants
+                                              .isPrimaryField] = false;
                                         }
                                       }
 
@@ -459,13 +363,15 @@ class HomePageState extends State<HomePage> {
                                           .updateDocumentFieldString(
                                         userEmail,
                                         FirebaseConstants.userBankCollection,
-                                        entry[FirebaseConstants.documentIdField],
+                                        entry[
+                                            FirebaseConstants.documentIdField],
                                         FirebaseConstants.isPrimaryField,
                                         true,
                                       );
 
                                       setStateDialog(() {
-                                        entry[FirebaseConstants.isPrimaryField] = true;
+                                        entry[FirebaseConstants
+                                            .isPrimaryField] = true;
                                         isUpdating = false;
                                       });
 
@@ -533,13 +439,14 @@ class HomePageState extends State<HomePage> {
                             Text(
                               bank[FirebaseConstants.nameField],
                               style: theme.textTheme.bodyLarge!.copyWith(
-                                color:
-                                    bank[FirebaseConstants.nameField] == AppConstants.addNewBankLabel
-                                        ? AppColors.primaryGreen
-                                        : theme.textTheme.bodyLarge!.color,
+                                color: bank[FirebaseConstants.nameField] ==
+                                        AppConstants.addNewBankLabel
+                                    ? AppColors.primaryGreen
+                                    : theme.textTheme.bodyLarge!.color,
                               ),
                             ),
-                            if (bank[FirebaseConstants.nameField] == AppConstants.addNewBankLabel)
+                            if (bank[FirebaseConstants.nameField] ==
+                                AppConstants.addNewBankLabel)
                               const Padding(
                                 padding: EdgeInsets.only(left: 4),
                                 child: Icon(
@@ -606,11 +513,11 @@ class HomePageState extends State<HomePage> {
     final userEmail = user.email!;
 
     try {
-      await firebaseService.deleteExpenseWithSalaryUpdate(
-        userEmail: userEmail,
-        expenseDocumentId: expenseId,
+      await firebaseService.deleteExpenseData(
+        userEmail,
+        expenseId,
+        FirebaseConstants.expenseCollection,
       );
-      _updateSalaryStream();
     } on StateError catch (e) {
       showToast(e.message.toString());
     } catch (_) {
@@ -660,7 +567,7 @@ class HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildSalaryWidget(String formattedSalaryAmount, ThemeData theme) {
+  Widget _buildTopRow(ThemeData theme) {
     final fallbackBank = {
       FirebaseConstants.imageField: 'assets/logo/black.png',
       FirebaseConstants.nameField: 'Select Bank',
@@ -674,91 +581,134 @@ class HomePageState extends State<HomePage> {
     final imagePath = selectedBank[FirebaseConstants.imageField] ?? '';
     final isNetworkImage = imagePath.toString().startsWith('http');
 
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        TextButton(
+          onPressed: () {
+            _showBankSelectionDialog(theme);
+          },
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.all(10),
+            backgroundColor: const Color.fromARGB(96, 255, 251, 241),
+          ),
+          child: Row(
+            children: [
+              isNetworkImage
+                  ? Image.network(imagePath, width: 24, height: 24)
+                  : Image.asset(imagePath, width: 24, height: 24),
+              const SizedBox(width: 8),
+              Text(
+                selectedBank[FirebaseConstants.nameField] ?? '',
+                style: const TextStyle(fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color.fromARGB(96, 255, 251, 241),
+            borderRadius: BorderRadius.circular(100),
+          ),
+          child: IconButton(
+            icon: const Icon(
+              FontAwesomeIcons.ellipsis,
+              color: Colors.white,
+            ),
+            onPressed: () async {
+              await showDialog(
+                context: context,
+                builder: (BuildContext context) => ManageSalaryDialog(
+                  email: userEmail,
+                  isTransactionMode: _currentToggleIndex == 0,
+                  selectedBankId: selectedBankId!,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBackCard(String amount, ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildTopRow(theme),
+        const SizedBox(height: 10),
+        Text(
+          _currentToggleIndex == 0 ? "Total Salary" : "Total Expense",
+          style: AppTextStyles.bodyText,
+        ),
+        Text(
+          amount,
+          style: AppTextStyles.headline,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFrontCard(String amount, ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildTopRow(theme),
+        const SizedBox(height: 10),
+        Text(
+          _currentToggleIndex == 0 ? "Current Month" : "Total Balance",
+          style: AppTextStyles.bodyText,
+        ),
+        Text(
+          amount,
+          style: AppTextStyles.headline,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSalaryWidget(String formattedSalaryAmount, ThemeData theme) {
     return SlideInAnimation(
       delay: const Duration(milliseconds: 100),
       startPosition: -0.5,
       endPosition: 0.0,
-      child: Container(
-        margin: const EdgeInsets.only(top: 20),
-        width: double.infinity,
-        height: 160,
-        decoration: BoxDecoration(
-          color: Colors.amber,
-          borderRadius: BorderRadius.circular(16.0),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(
-                  onPressed: () {
-                    _showBankSelectionDialog(theme);
-                  },
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.all(10),
-                    textStyle: const TextStyle(fontSize: 16),
-                    backgroundColor: const Color.fromARGB(96, 255, 251, 241),
-                  ).copyWith(
-                    shape: WidgetStateProperty.all(
-                      RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(100.0),
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      isNetworkImage
-                          ? Image.network(imagePath, width: 24, height: 24)
-                          : Image.asset(imagePath, width: 24, height: 24),
-                      const SizedBox(width: 8),
-                      Text(
-                        selectedBank[FirebaseConstants.nameField] ?? 'Select Bank',
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color.fromARGB(96, 255, 251, 241),
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  child: IconButton(
-                    icon: const Icon(
-                      FontAwesomeIcons.ellipsis,
-                      color: Colors.white,
-                    ),
-                    onPressed: () async {
-                      final result = await showDialog(
-                        context: context,
-                        builder: (BuildContext context) => AddSalaryDialog(
-                          email: userEmail,
-                          onSalaryUpdated: _updateSalaryStream,
-                        ),
-                      );
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _isFlipped = !_isFlipped;
+          });
+        },
+        child: TweenAnimationBuilder<double>(
+          duration: const Duration(milliseconds: 500),
+          tween: Tween<double>(begin: 0, end: _isFlipped ? 1 : 0),
+          builder: (context, value, child) {
+            final angle = value * 3.1416;
+            final isBack = angle > 1.5708;
 
-                      if (result == AppConstants.refresh) {
-                        _updateSalaryStream();
-                      }
-                    },
-                  ),
+            return Transform(
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.001)
+                ..rotateY(angle),
+              alignment: Alignment.center,
+              child: Container(
+                margin: const EdgeInsets.only(top: 20),
+                width: double.infinity,
+                height: 160,
+                decoration: BoxDecoration(
+                  color: Colors.amber,
+                  borderRadius: BorderRadius.circular(16.0),
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              _currentToggleIndex == 0 ? "Your Balance" : "Salary Balance",
-              style: AppTextStyles.bodyText,
-            ),
-            Text(
-              formattedSalaryAmount,
-              style: AppTextStyles.headline,
-            ),
-          ],
+                padding: const EdgeInsets.all(16),
+                child: isBack
+                    ? Transform(
+                        alignment: Alignment.center,
+                        transform: Matrix4.rotationY(3.1416),
+                        child: _buildBackCard(formattedSalaryAmount, theme),
+                      )
+                    : _buildFrontCard(formattedSalaryAmount, theme),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -790,11 +740,7 @@ class HomePageState extends State<HomePage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          String result = await openFullScreenModal(context, null, null);
-
-          if (result == AppConstants.refresh) {
-            _updateSalaryStream();
-          }
+          await openFullScreenModal(context, null, null);
         },
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16.0),
@@ -811,9 +757,8 @@ class HomePageState extends State<HomePage> {
           padding: const EdgeInsets.only(top: kToolbarHeight + 50),
           child: Column(children: [
             Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
+                padding: const EdgeInsets.all(16.0),
+                child: Column(children: [
                   SlideInAnimation(
                     delay: const Duration(milliseconds: 150),
                     startPosition: -1.0,
@@ -855,368 +800,390 @@ class HomePageState extends State<HomePage> {
                         onToggle: (index) {
                           setState(() {
                             _currentToggleIndex = index!;
-                            _updateSalaryStream();
+                            _isFlipped = false;
                           });
                         },
                       ),
                     ),
                   ),
+
+                  //Salary card
                   StreamBuilder<Map<String, dynamic>>(
-                    stream: bankDataStream,
-                    builder: (context, bankSnapshot) {
-                      if (bankSnapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.secondaryGreen,
-                          ),
-                        );
-                      } else if (bankSnapshot.hasError) {
-                        return Center(
-                          child: Text(
-                            "An Error Occurred",
-                            style: theme.textTheme.bodyLarge,
-                          ),
-                        );
-                      } else if (!bankSnapshot.hasData ||
-                          bankSnapshot.data!.isEmpty) {
-                        return Center(
-                          child: Text(
-                            "No bank data available.",
-                            style: theme.textTheme.bodyLarge,
-                          ),
-                        );
-                      } else {
-                        return Column(
-                          children: [
-                            if (_currentToggleIndex == 0)
-                              StreamBuilder<Map<String, dynamic>>(
-                                stream: salaryDataStream,
-                                builder: (context, snapshot) {
-                                  return _buildSalaryWidget(
-                                      currentBalance, theme);
-                                },
-                              )
-                            else
-                              StreamBuilder<Map<String, dynamic>>(
-                                stream: salaryDataStream,
-                                builder: (context, salarySnapshot) {
-                                  if (salarySnapshot.connectionState ==
-                                      ConnectionState.waiting) {
-                                    return const Center(
-                                      child: CircularProgressIndicator(
-                                        color: AppColors.secondaryGreen,
-                                      ),
-                                    );
-                                  } else if (salarySnapshot.hasError) {
-                                    return Center(
-                                      child: Text(
-                                        "An Error Occurred",
-                                        style: theme.textTheme.bodyLarge,
-                                      ),
-                                    );
-                                  } else if (!salarySnapshot.hasData ||
-                                      salarySnapshot.data!.isEmpty) {
-                                    return _buildSalaryWidget('₹0', theme);
-                                  } else {
-                                    final latestSalaryDoc =
-                                        salarySnapshot.data!;
-                                    final latestSalaryAmount = latestSalaryDoc[
-                                        FirebaseConstants.currentAmountField];
-
-                                    final formattedSalaryAmount =
-                                        NumberFormat.currency(
-                                      locale: 'en_IN',
-                                      symbol: '₹',
-                                      decimalDigits: 0,
-                                    ).format(latestSalaryAmount);
-
-                                    return _buildSalaryWidget(
-                                        formattedSalaryAmount, theme);
-                                  }
-                                },
-                              ),
-                            const SizedBox(height: 10),
-                            SlideInAnimation(
-                              delay: const Duration(milliseconds: 100),
-                              startPosition: -0.5,
-                              endPosition: 0.0,
-                              child: LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final containerWidth =
-                                      (constraints.maxWidth - 32) /
-                                          3; // subtracting total spacing
-
-                                  return Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      SizedBox(
-                                        width: containerWidth,
-                                        child: FilterContainer(
-                                          icon: FeatherIcons.arrowDownLeft,
-                                          text: AppConstants
-                                              .transactionTypeDeposit,
-                                          color: _selectedFilterType ==
-                                                      AppConstants
-                                                          .transactionTypeDeposit ||
-                                                  _selectedFilterType == null
-                                              ? AppColors.filterButtonBlack
-                                              : const Color(0xFF595A69),
-                                          onTap: () {
-                                            if (_selectedFilterType ==
-                                                AppConstants
-                                                    .transactionTypeDeposit) {
-                                              setState(() {
-                                                _selectedFilterType = null;
-                                              });
-                                            } else {
-                                              setState(() {
-                                                _selectedFilterType =
-                                                    AppConstants
-                                                        .transactionTypeDeposit;
-                                              });
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: containerWidth,
-                                        child: FilterContainer(
-                                          icon: FeatherIcons.arrowUpRight,
-                                          text: AppConstants
-                                              .transactionTypeWithdraw,
-                                          color: _selectedFilterType ==
-                                                      AppConstants
-                                                          .transactionTypeWithdraw ||
-                                                  _selectedFilterType == null
-                                              ? AppColors.purple
-                                              : const Color(0xFFA783AE),
-                                          onTap: () {
-                                            if (_selectedFilterType ==
-                                                AppConstants
-                                                    .transactionTypeWithdraw) {
-                                              setState(() {
-                                                _selectedFilterType = null;
-                                              });
-                                            } else {
-                                              setState(() {
-                                                _selectedFilterType =
-                                                    AppConstants
-                                                        .transactionTypeWithdraw;
-                                              });
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: containerWidth,
-                                        child: FilterContainer(
-                                          icon: FeatherIcons.arrowUp,
-                                          text: AppConstants
-                                              .transactionTypeTransfer,
-                                          color: _selectedFilterType ==
-                                                      AppConstants
-                                                          .transactionTypeTransfer ||
-                                                  _selectedFilterType == null
-                                              ? AppColors.filterButtonGreen
-                                              : const Color(0xFF82B387),
-                                          onTap: () {
-                                            if (_selectedFilterType ==
-                                                AppConstants
-                                                    .transactionTypeTransfer) {
-                                              setState(() {
-                                                _selectedFilterType = null;
-                                              });
-                                            } else {
-                                              setState(() {
-                                                _selectedFilterType =
-                                                    AppConstants
-                                                        .transactionTypeTransfer;
-                                              });
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                            ),
-                            const SizedBox(
-                              height: 20,
-                            ),
-                            Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  "Transactions",
-                                  style: theme.textTheme.headlineLarge,
-                                  textAlign: TextAlign.start,
-                                )),
-                          ],
-                        );
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-            Flexible(
-                fit: FlexFit.loose,
-                child: SlideInAnimation(
-                  delay: const Duration(milliseconds: 100),
-                  startPosition: -0.5,
-                  endPosition: 0.0,
-                  child: StreamBuilder<Map<String, dynamic>>(
-                    stream: expenseDataStream,
+                    stream: firebaseService.streamGetAllData(
+                      userEmail,
+                      FirebaseConstants.expenseCollection,
+                    ),
                     builder: (context, expenseSnapshot) {
-                      if (!expenseSnapshot.hasData) {
-                        return const CircularProgressIndicator(
-                          color: AppColors.secondaryGreen,
-                        );
+                      if (!expenseSnapshot.hasData || selectedBankId == null) {
+                        return _buildSalaryWidget("₹0", theme);
                       }
 
-                      final expenseData = expenseSnapshot.data!;
+                      final expenses = expenseSnapshot.data!.entries
+                          .where((e) =>
+                              e.value[FirebaseConstants.bankIdField] ==
+                              selectedBankId)
+                          .toList();
 
-                      return StreamBuilder<Map<String, dynamic>>(
-                        stream: expenseTypesStream,
-                        builder: (context, typeSnapshot) {
-                          if (!typeSnapshot.hasData) {
-                            return const SizedBox();
+                      final now = DateTime.now();
+
+                      double totalDeposits = 0;
+                      double totalWithdrawals = 0;
+                      double currentMonthSalary = 0;
+                      double currentMonthNet = 0;
+
+                      for (final e in expenses) {
+                        final amount =
+                            (e.value[FirebaseConstants.amountField] ?? 0)
+                                .toDouble();
+
+                        final type =
+                            e.value[FirebaseConstants.transactionTypeField];
+
+                        final category =
+                            e.value[FirebaseConstants.expenseCategoryField];
+
+                        final ts = e.value[FirebaseConstants.timestampField]
+                            as Timestamp;
+
+                        final d = ts.toDate();
+
+                        final isThisMonth =
+                            d.month == now.month && d.year == now.year;
+
+                        if (type == AppConstants.transactionTypeDeposit) {
+                          totalDeposits += amount;
+
+                          if (isThisMonth) {
+                            currentMonthNet += amount;
                           }
 
-                          final expenseTypes = typeSnapshot.data!;
+                          if (category == AppConstants.salaryCategory.toLowerCase() &&
+                              isThisMonth) {
+                            currentMonthSalary += amount;
+                          }
+                        } else {
+                          totalWithdrawals += amount;
 
-                          return ListView(
-                            padding: EdgeInsets.zero,
-                            children: (expenseData.entries.where((entry) {
-                              if (_selectedFilterType == null) return true;
-                              return entry.value[
-                                      FirebaseConstants.transactionTypeField] ==
-                                  _selectedFilterType;
-                            }).toList()
-                                  ..sort((a, b) {
-                                    final tsA = a.value[FirebaseConstants
-                                        .timestampField] as Timestamp;
-                                    final tsB = b.value[FirebaseConstants
-                                        .timestampField] as Timestamp;
-                                    return tsB.compareTo(tsA); // Newest first
-                                  }))
-                                .map((entry) {
-                              final expense = entry.value;
-                              final categoryId = expense[
-                                  FirebaseConstants.expenseCategoryField];
-                              final categoryInfo = expenseTypes[categoryId];
-                              final categoryImage = categoryInfo?[FirebaseConstants.imageField] ??
-                                  'assets/images/other-expenses.png';
+                          if (isThisMonth) {
+                            currentMonthNet -= amount;
+                          }
+                        }
+                      }
 
-                              return Slidable(
-                                  key: ValueKey(entry
-                                      .key), // Make sure each slidable has a unique key
-                                  endActionPane: ActionPane(
-                                    motion:
-                                        const DrawerMotion(), // You can use other motions too
-                                    extentRatio:
-                                        0.4, // Adjust how much space the actions take
-                                    children: [
-                                      SlidableAction(
-                                        onPressed: (_) {
-                                          // Implement your edit logic
-                                          openFullScreenModal(
-                                              context, entry.key, expense);
-                                        },
-                                        backgroundColor:
-                                            AppColors.secondaryGreen,
-                                        foregroundColor: Colors.white,
-                                        icon: FontAwesomeIcons.pencil,
-                                        label: 'Edit',
-                                      ),
-                                      SlidableAction(
-                                        onPressed: (_) {
-                                          showAlertDialog(
-                                              context,
-                                              Theme.of(context),
-                                              'Delete Expense',
-                                              'Are you sure you want to delete this expense?',
-                                              'Delete',
-                                              () =>
-                                                  _onDeleteExpense(entry.key));
-                                        },
-                                        backgroundColor: AppColors.danger,
-                                        foregroundColor: AppColors.white,
-                                        icon: FontAwesomeIcons.trash,
-                                        label: 'Delete',
-                                      ),
-                                      SlidableAction(
-                                        onPressed: (_) {
-                                          showDialog(
-                                            context: context,
-                                            builder: (_) => SetReminderDialog(
-                                              documentId: expense[
-                                                  FirebaseConstants
-                                                      .salaryDocumentIdField],
-                                              reminderName: expense[
-                                                  FirebaseConstants
-                                                      .expenseCategoryField],
-                                            ),
-                                          );
-                                        },
-                                        backgroundColor: AppColors.amber,
-                                        foregroundColor: AppColors.white,
-                                        icon: FontAwesomeIcons.clock,
-                                        label: 'Reminder',
-                                      ),
-                                    ],
-                                  ),
-                                  child: ListCard(
-                                    image: categoryImage,
-                                    title: expense[
-                                            FirebaseConstants.expenseField] ??
-                                        '',
-                                    subTitle: Row(children: [
-                                      Text(
-                                        expense[FirebaseConstants
-                                                .transactionTypeField] ??
-                                            '',
-                                        style: theme.textTheme.bodyLarge,
-                                      ),
-                                      expense[FirebaseConstants
-                                                  .transactionTypeField] ==
-                                              AppConstants
-                                                  .transactionTypeDeposit
-                                          ? const Icon(
-                                              FeatherIcons.arrowDownLeft,
-                                              color:
-                                                  AppColors.filterButtonGreen)
-                                          : expense[FirebaseConstants
-                                                      .transactionTypeField] ==
-                                                  AppConstants
-                                                      .transactionTypeWithdraw
-                                              ? const Icon(
-                                                  FeatherIcons.arrowUpRight,
-                                                  color: AppColors.danger)
-                                              : const Icon(FeatherIcons.arrowUp,
-                                                  color: AppColors.danger)
-                                    ]),
-                                    suffix:
-                                        '₹${expense[FirebaseConstants.amountField]}',
-                                    footer: Text(
-                                        formatTimestamp(expense[
-                                            FirebaseConstants.timestampField]),
-                                        style: TextStyle(
-                                            fontSize: theme
-                                                .textTheme.labelSmall?.fontSize,
-                                            color: themeMode == ThemeMode.dark
-                                                ? AppColors.white70
-                                                : AppColors.black87)),
-                                  ));
-                            }).toList(),
-                          );
-                        },
-                      );
+                      final totalBankBalance = totalDeposits - totalWithdrawals;
+
+                      double valueToShow;
+
+                      if (_currentToggleIndex == 0) {
+                        // TRANSACTION MODE
+                        valueToShow =
+                            _isFlipped ? currentMonthSalary : currentMonthNet;
+                      } else {
+                        // BALANCE MODE
+                        valueToShow =
+                            _isFlipped ? totalWithdrawals : totalBankBalance;
+                      }
+
+                      final formatted = NumberFormat.currency(
+                        locale: AppConstants.englishIndiaLocale,
+                        symbol: AppConstants.rupeesSymbol,
+                        decimalDigits: 0,
+                      ).format(valueToShow);
+
+                      return _buildSalaryWidget(formatted, theme);
                     },
                   ),
-                )),
+                  const SizedBox(height: 10),
+
+                  SlideInAnimation(
+                    delay: const Duration(milliseconds: 100),
+                    startPosition: -0.5,
+                    endPosition: 0.0,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final containerWidth = (constraints.maxWidth - 32) / 3;
+
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            SizedBox(
+                              width: containerWidth,
+                              child: FilterContainer(
+                                icon: FeatherIcons.arrowDownLeft,
+                                text: AppConstants.transactionTypeDeposit,
+                                color: _selectedFilterType ==
+                                            AppConstants
+                                                .transactionTypeDeposit ||
+                                        _selectedFilterType == null
+                                    ? AppColors.filterButtonBlack
+                                    : const Color(0xFF595A69),
+                                onTap: () {
+                                  setState(() {
+                                    _selectedFilterType = _selectedFilterType ==
+                                            AppConstants.transactionTypeDeposit
+                                        ? null
+                                        : AppConstants.transactionTypeDeposit;
+                                  });
+                                },
+                              ),
+                            ),
+                            SizedBox(
+                              width: containerWidth,
+                              child: FilterContainer(
+                                icon: FeatherIcons.arrowUpRight,
+                                text: AppConstants.transactionTypeWithdraw,
+                                color: _selectedFilterType ==
+                                            AppConstants
+                                                .transactionTypeWithdraw ||
+                                        _selectedFilterType == null
+                                    ? AppColors.purple
+                                    : const Color(0xFFA783AE),
+                                onTap: () {
+                                  setState(() {
+                                    _selectedFilterType = _selectedFilterType ==
+                                            AppConstants.transactionTypeWithdraw
+                                        ? null
+                                        : AppConstants.transactionTypeWithdraw;
+                                  });
+                                },
+                              ),
+                            ),
+                            SizedBox(
+                              width: containerWidth,
+                              child: FilterContainer(
+                                icon: FeatherIcons.arrowUp,
+                                text: AppConstants.transactionTypeTransfer,
+                                color: _selectedFilterType ==
+                                            AppConstants
+                                                .transactionTypeTransfer ||
+                                        _selectedFilterType == null
+                                    ? AppColors.filterButtonGreen
+                                    : const Color(0xFF82B387),
+                                onTap: () {
+                                  setState(() {
+                                    _selectedFilterType = _selectedFilterType ==
+                                            AppConstants.transactionTypeTransfer
+                                        ? null
+                                        : AppConstants.transactionTypeTransfer;
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ])),
+
+            /// EXPENSE LIST SECTION (THIS MUST BE FLEXED)
+            Flexible(
+              fit: FlexFit.loose,
+              child: SlideInAnimation(
+                delay: const Duration(milliseconds: 100),
+                startPosition: -0.5,
+                endPosition: 0.0,
+                child: StreamBuilder<Map<String, dynamic>>(
+                  stream: firebaseService.streamGetAllData(
+                    userEmail,
+                    FirebaseConstants.expenseCollection,
+                  ),
+                  builder: (context, expenseSnapshot) {
+                    if (!expenseSnapshot.hasData) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.secondaryGreen,
+                        ),
+                      );
+                    }
+
+                    if (selectedBankId == null) {
+                      return const SizedBox();
+                    }
+
+                    final expenseData = expenseSnapshot.data!;
+                    final now = DateTime.now();
+
+                    // FILTER LOGIC (THIS FIXES EVERYTHING)
+                    final filteredExpenses = expenseData.entries.where((entry) {
+                      final data = entry.value;
+
+                      // 1. Bank filter
+                      if (data[FirebaseConstants.bankIdField] !=
+                          selectedBankId) {
+                        return false;
+                      }
+
+                      // 2. Transaction mode → current month only
+                      if (_currentToggleIndex == 0) {
+                        final ts =
+                            data[FirebaseConstants.timestampField] as Timestamp;
+                        final date = ts.toDate();
+
+                        if (date.month != now.month || date.year != now.year) {
+                          return false;
+                        }
+                      }
+
+                      // 3. Chip filter
+                      if (_selectedFilterType != null &&
+                          data[FirebaseConstants.transactionTypeField] !=
+                              _selectedFilterType) {
+                        return false;
+                      }
+
+                      return true;
+                    }).toList();
+
+                    // 4. Sort newest first
+                    filteredExpenses.sort((a, b) {
+                      final tsA = a.value[FirebaseConstants.timestampField]
+                          as Timestamp;
+                      final tsB = b.value[FirebaseConstants.timestampField]
+                          as Timestamp;
+                      return tsB.compareTo(tsA);
+                    });
+
+                    return StreamBuilder<Map<String, dynamic>>(
+                      stream: expenseTypesStream,
+                      builder: (context, typeSnapshot) {
+                        if (!typeSnapshot.hasData) {
+                          return const SizedBox();
+                        }
+
+                        final expenseTypes = typeSnapshot.data!;
+
+                        return ListView(
+                          padding: EdgeInsets.zero,
+                          children: filteredExpenses.map((entry) {
+                            final expense = entry.value;
+                            final categoryId =
+                                expense[FirebaseConstants.expenseCategoryField];
+
+                            final categoryInfo = expenseTypes[categoryId];
+                            final categoryImage =
+                                categoryInfo?[FirebaseConstants.imageField] ??
+                                    'assets/images/other-expenses.png';
+
+                            return Slidable(
+                              key: ValueKey(entry.key),
+                              endActionPane: ActionPane(
+                                motion: const DrawerMotion(),
+                                extentRatio: 0.4,
+                                children: [
+                                  SlidableAction(
+                                    onPressed: (_) {
+                                      final ts = expense?[FirebaseConstants
+                                          .timestampField] as Timestamp?;
+                                      if (ts != null) {
+                                        final d = ts.toDate();
+                                        final now = DateTime.now();
+                                        final isOldMonth =
+                                            d.month != now.month ||
+                                                d.year != now.year;
+
+                                        if (isOldMonth) {
+                                          showToast(
+                                              "Editing previous month is not allowed.");
+                                          return;
+                                        }
+
+                                        openFullScreenModal(
+                                            context, entry.key, expense);
+                                      }
+                                    },
+                                    backgroundColor: AppColors.secondaryGreen,
+                                    foregroundColor: Colors.white,
+                                    icon: FontAwesomeIcons.pencil,
+                                    label: 'Edit',
+                                  ),
+                                  SlidableAction(
+                                    onPressed: (_) {
+                                      showAlertDialog(
+                                        context,
+                                        Theme.of(context),
+                                        'Delete Expense',
+                                        'Are you sure you want to delete this expense?',
+                                        'Delete',
+                                        () => _onDeleteExpense(entry.key),
+                                      );
+                                    },
+                                    backgroundColor: AppColors.danger,
+                                    foregroundColor: Colors.white,
+                                    icon: FontAwesomeIcons.trash,
+                                    label: 'Delete',
+                                  ),
+                                  SlidableAction(
+                                    onPressed: (_) {
+                                      showDialog(
+                                        context: context,
+                                        builder: (_) => SetReminderDialog(
+                                          documentId: entry.key,
+                                          reminderName: expense[
+                                              FirebaseConstants
+                                                  .expenseCategoryField],
+                                        ),
+                                      );
+                                    },
+                                    backgroundColor: AppColors.amber,
+                                    foregroundColor: Colors.white,
+                                    icon: FontAwesomeIcons.clock,
+                                    label: 'Reminder',
+                                  ),
+                                ],
+                              ),
+                              child: ListCard(
+                                image: categoryImage,
+                                title:
+                                    expense[FirebaseConstants.expenseField] ??
+                                        '',
+                                subTitle: Row(
+                                  children: [
+                                    Text(
+                                      expense[FirebaseConstants
+                                              .transactionTypeField] ??
+                                          '',
+                                      style:
+                                          Theme.of(context).textTheme.bodyLarge,
+                                    ),
+                                    expense[FirebaseConstants
+                                                .transactionTypeField] ==
+                                            AppConstants.transactionTypeDeposit
+                                        ? const Icon(FeatherIcons.arrowDownLeft,
+                                            color: AppColors.filterButtonGreen)
+                                        : expense[FirebaseConstants
+                                                    .transactionTypeField] ==
+                                                AppConstants
+                                                    .transactionTypeWithdraw
+                                            ? const Icon(
+                                                FeatherIcons.arrowUpRight,
+                                                color: AppColors.danger)
+                                            : const Icon(FeatherIcons.arrowUp,
+                                                color: AppColors.danger)
+                                  ],
+                                ),
+                                suffix:
+                                    '₹${expense[FirebaseConstants.amountField]}',
+                                footer: Text(
+                                  formatTimestamp(expense[
+                                      FirebaseConstants.timestampField]),
+                                  style: TextStyle(
+                                    fontSize: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.fontSize,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            )
           ])),
     );
   }

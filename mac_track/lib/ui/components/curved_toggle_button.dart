@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:toggle_switch/toggle_switch.dart';
-import '../ui/theme.dart';
+import '../theme.dart';
 
 class CurvedToggleButton extends StatefulWidget {
   const CurvedToggleButton({super.key});

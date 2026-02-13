@@ -5,7 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mac_track/ui/homepage.dart';
 import 'package:mac_track/ui/insight.dart';
 import 'package:mac_track/ui/theme.dart';
-import '../ui/sign.dart';
+import '../sign.dart';
 
 class NavBar extends StatelessWidget {
   const NavBar({super.key});

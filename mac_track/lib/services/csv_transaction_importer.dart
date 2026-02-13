@@ -1,28 +1,20 @@
 import 'dart:io';
 import 'package:csv/csv.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:mac_track/config/constants.dart';
 import 'package:mac_track/utils/csv_importer.dart';
 
-class CsvTransactionImporter {
+class CsvTransactionImporter {    
   Future<List<Map<String, dynamic>>> importCsv({
+    required String filePath,
     required String selectedBankId,
-    required String salaryDocumentId, // ✅ REQUIRED
     required Map<String, String> expenseCategoryMap,
   }) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['csv'],
-    );
 
-    if (result == null || result.files.single.path == null) {
-      return [];
-    }
-
-    final file = File(result.files.single.path!);
+    final file = File(filePath);
     final content = await file.readAsString();
 
     final List<List<dynamic>> rows = CsvCodec().decoder.convert(content);
+
     if (rows.length < 2) {
       throw Exception('CSV has no transaction rows');
     }
@@ -52,50 +44,56 @@ class CsvTransactionImporter {
 
     for (int i = 1; i < rows.length; i++) {
       final row = rows[i];
-      if (descIdx >= row.length) continue;
 
-      final description = row[descIdx].toString().trim();
-      if (description.isEmpty) continue;
+      if (row.isEmpty || descIdx >= row.length) continue;
+
+      final rawDescription = row[descIdx].toString().trim();
+      if (rawDescription.isEmpty || rawDescription.length < 2) continue;
 
       double amount = 0;
       String transactionType = AppConstants.transactionTypeWithdraw;
 
-      if (debitIdx != null &&
-          debitIdx < row.length &&
-          row[debitIdx].toString().isNotEmpty) {
-        amount = double.tryParse(row[debitIdx].toString()) ?? 0;
-      } else if (creditIdx != null &&
-          creditIdx < row.length &&
-          row[creditIdx].toString().isNotEmpty) {
-        amount = double.tryParse(row[creditIdx].toString()) ?? 0;
-        transactionType = AppConstants.transactionTypeDeposit;
-      } else if (amountIdx != null && amountIdx < row.length) {
-        amount = double.tryParse(row[amountIdx].toString()) ?? 0;
+      String sanitize(String value) =>
+          value.replaceAll(',', '').replaceAll('₹', '').trim();
+
+      try {
+        if (debitIdx != null &&
+            debitIdx < row.length &&
+            row[debitIdx].toString().trim().isNotEmpty) {
+          amount = double.tryParse(sanitize(row[debitIdx].toString())) ?? 0;
+          transactionType = AppConstants.transactionTypeWithdraw;
+        } else if (creditIdx != null &&
+            creditIdx < row.length &&
+            row[creditIdx].toString().trim().isNotEmpty) {
+          amount = double.tryParse(sanitize(row[creditIdx].toString())) ?? 0;
+          transactionType = AppConstants.transactionTypeDeposit;
+        } else if (amountIdx != null && amountIdx < row.length) {
+          amount = double.tryParse(sanitize(row[amountIdx].toString())) ?? 0;
+        }
+      } catch (_) {
+        continue;
       }
 
-      if (amount <= 0) continue;
+      if (amount <= 0 || amount.isNaN || amount.isInfinite) continue;
 
-      final semantic = CsvSemanticDictionary.infer(description);
+      final semantic = CsvSemanticDictionary.infer(rawDescription);
 
       final categoryId = expenseCategoryMap[semantic.inferredCategoryName] ??
-          expenseCategoryMap[AppConstants.otherCategory]!;
+          expenseCategoryMap[AppConstants.otherCategory];
 
-      // SAME document ID strategy as manual add
+      if (categoryId == null) continue;
+
       final now = DateTime.now();
-      final documentId = "${now.toIso8601String()}_$amount";
+      final documentId = "${now.microsecondsSinceEpoch}_$amount";
 
       parsedExpenses.add({
         FirebaseConstants.documentIdField: documentId,
-
         FirebaseConstants.amountField: amount,
         FirebaseConstants.bankIdField: selectedBankId,
         FirebaseConstants.expenseField: semantic.inferredExpenseName,
         FirebaseConstants.expenseCategoryField: categoryId,
         FirebaseConstants.transactionTypeField: transactionType,
         FirebaseConstants.timestampField: now,
-
-        // REQUIRED FIELDS (missing earlier)
-        FirebaseConstants.salaryDocumentIdField: salaryDocumentId,
         FirebaseConstants.isReminderCompletedField: false,
         FirebaseConstants.reminderRepetitionField: AppConstants.reminderOnce,
         FirebaseConstants.reminderTimeField: null,

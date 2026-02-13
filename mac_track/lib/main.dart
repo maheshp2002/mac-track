@@ -3,7 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:mac_track/services/flutter_local_notification_plugin.dart';
 import 'package:provider/provider.dart';
-import 'components/theme_manager.dart';
+import 'ui/components/theme_manager.dart';
 import 'services/default_firebase_option.dart';
 import 'ui/splash_screen.dart';
 import 'ui/theme.dart';

@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:mac_track/components/toast.dart';
+import 'package:mac_track/ui/components/toast.dart';
 import 'package:mac_track/config/constants.dart';
 import 'package:mac_track/services/firebase_service.dart';
 import 'package:mac_track/ui/theme.dart';
@@ -33,7 +33,7 @@ class AddBankDialogState extends State<AddBankDialog> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final hasOnlyDefault =
-          widget.userBanks.length == 1 && widget.userBanks.first['id'] == 'add';
+          widget.userBanks.length == 1 && widget.userBanks.first[FirebaseConstants.primaryIdField] == 'add';
       setState(() {
         _isPrimary = hasOnlyDefault;
       });
@@ -71,11 +71,11 @@ class AddBankDialogState extends State<AddBankDialog> {
       // Step 1: Unmark other banks as primary
       if (_isPrimary) {
         for (var bank in widget.userBanks) {
-          if (bank['id'] != 'add' && bank['isPrimary'] == true) {
+          if (bank[FirebaseConstants.primaryIdField] != 'add' && bank[FirebaseConstants.isPrimaryField] == true) {
             await firebaseService.updateDocumentFieldString(
               userEmail,
               FirebaseConstants.userBankCollection,
-              bank['documentId'],
+              bank[FirebaseConstants.documentIdField],
               FirebaseConstants.isPrimaryField,
               false,
             );
@@ -85,7 +85,7 @@ class AddBankDialogState extends State<AddBankDialog> {
 
       // Step 2: Prepare the data to be stored
       Map<String, dynamic> bankData = {
-        'isPrimary': _isPrimary,
+        FirebaseConstants.isPrimaryField: _isPrimary,
         FirebaseConstants.timestampField: now,
         FirebaseConstants.bankIdField: _selectedBankId,
         FirebaseConstants.bankNameField: bankName
@@ -193,8 +193,8 @@ class AddBankDialogState extends State<AddBankDialog> {
                           .map(
                             (entry) => ChoiceChip(
                               showCheckmark: false,
-                              avatar: Image.network(entry.value['image']),
-                              label: Text(entry.value['name']),
+                              avatar: Image.network(entry.value[FirebaseConstants.imageField]),
+                              label: Text(entry.value[FirebaseConstants.nameField]),
                               labelStyle: TextStyle(
                                 color: _selectedBankId == entry.key
                                     ? Colors.white

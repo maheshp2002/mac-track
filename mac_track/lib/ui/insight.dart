@@ -1,11 +1,12 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:mac_track/components/curved_toggle_button.dart';
+import 'package:mac_track/ui/components/curved_toggle_button.dart';
 import 'package:provider/provider.dart';
-import '../components/common_app_bar.dart';
-import '../components/graph.dart';
-import '../components/navbar.dart';
-import '../components/theme_manager.dart';
+import 'components/common_app_bar.dart';
+import 'components/graph.dart';
+import 'components/navbar.dart';
+import 'components/theme_manager.dart';
 import 'theme.dart';
 import '../../config/constants.dart';
 import '../services/firebase_service.dart';
@@ -69,20 +70,20 @@ class InsightState extends State<Insight> {
         final bankId = prevId == AppConstants.otherCategory
             ? entry.value[FirebaseConstants.bankNameField]
             : entry.value[FirebaseConstants.bankIdField];
-        final isPrimary = entry.value['isPrimary'];
+        final isPrimary = entry.value[FirebaseConstants.isPrimaryField];
         final bankDetails = prevId == AppConstants.otherCategory
             ? masterBanks[prevId]
             : masterBanks[bankId];
 
         if (bankDetails != null) {
           updatedUserBanks.add({
-            'id': bankId,
-            'name': prevId == AppConstants.otherCategory
+            FirebaseConstants.primaryIdField: bankId,
+            FirebaseConstants.nameField: prevId == AppConstants.otherCategory
                 ? entry.value[FirebaseConstants.bankNameField]
-                : bankDetails['name'],
-            'image': bankDetails['image'],
-            'isPrimary': isPrimary,
-            'documentId': documentId,
+                : bankDetails[FirebaseConstants.nameField],
+            FirebaseConstants.imageField: bankDetails[FirebaseConstants.imageField],
+            FirebaseConstants.isPrimaryField: isPrimary,
+            FirebaseConstants.documentIdField: documentId,
           });
 
           if (isPrimary == true) {
@@ -92,18 +93,18 @@ class InsightState extends State<Insight> {
       }
 
       updatedUserBanks.add({
-        'id': AppConstants.allItem,
-        'name': AppConstants.allItem,
-        'image': '',
-        'isPrimary': false,
-        'documentId': '',
+        FirebaseConstants.primaryIdField: AppConstants.allItem,
+        FirebaseConstants.nameField: AppConstants.allItem,
+        FirebaseConstants.imageField: '',
+        FirebaseConstants.isPrimaryField: false,
+        FirebaseConstants.documentIdField: '',
       });
 
       setState(() {
         userBanks = updatedUserBanks;
 
         // Ensure the selectedBankId exists in userBanks, else set it to primaryBankId
-        final existingBankIds = updatedUserBanks.map((b) => b['id']).toList();
+        final existingBankIds = updatedUserBanks.map((b) => b[FirebaseConstants.primaryIdField]).toList();
         if (!existingBankIds.contains(selectedBankId)) {
           selectedBankId = primaryBankId;
         }
@@ -121,118 +122,117 @@ class InsightState extends State<Insight> {
 
   void _updateSalaryStream([String? selectedValue]) async {
     final email = FirebaseAuth.instance.currentUser!.email!;
-    final data = await firebaseService
-        .streamGetAllDataForReport(email, FirebaseConstants.salaryCollection)
+
+    final expenseDataRaw = await firebaseService
+        .streamGetAllData(email, FirebaseConstants.expenseCollection)
         .first;
 
-    final filtered = data.entries
-        .where((entry) =>
-            entry.value[FirebaseConstants.bankIdField] == selectedBankId)
-        .toList();
-
-    filtered.sort((a, b) {
-      final aTime = a.value[FirebaseConstants.timestampField]?.toDate();
-      final bTime = b.value[FirebaseConstants.timestampField]?.toDate();
-      return bTime.compareTo(aTime);
-    });
-
-    salaryData = filtered
-        .map((e) => {...(e.value as Map<String, dynamic>), 'id': e.key})
-        .toList();
-
-    // Add "All" item last in the list
+    // Add ALL option
     salaryData.add({
-      'id': AppConstants.allItem,
-      FirebaseConstants.bankIdField: AppConstants.allItem,
-      FirebaseConstants.currentAmountField: AppConstants.allItem,
-      FirebaseConstants.timestampField: '',
+      FirebaseConstants.primaryIdField: AppConstants.allItem,
       FirebaseConstants.totalAmountField: 0.0
     });
 
-    // Use the newly passed value if available
     selectedSalaryItem = selectedValue ?? selectedSalaryItem;
 
-    final isSelectedSalaryValid =
-        salaryData.any((entry) => entry['id'] == selectedSalaryItem);
-
-    if (!isSelectedSalaryValid) {
-      selectedSalaryItem = salaryData.isNotEmpty ? salaryData.first['id'] : "";
+    if (!salaryData.any((e) =>
+        e[FirebaseConstants.primaryIdField] ==
+        selectedSalaryItem)) {
+      selectedSalaryItem = salaryData.isNotEmpty
+          ? salaryData.first[FirebaseConstants.primaryIdField]
+          : "";
     }
 
-    if (selectedSalaryItem != AppConstants.allItem && salaryData.isNotEmpty) {
-      final selected = salaryData.firstWhere(
-        (e) => e['id'] == selectedSalaryItem,
-        orElse: () => salaryData.first,
-      );
+    double calculatedBalance = 0;
+    double calculatedExpense = 0;
 
-      setState(() {
-        currentBalance = NumberFormat.currency(
-          locale: 'en_IN',
-          symbol: '₹',
-          decimalDigits: 0,
-        ).format(selected[FirebaseConstants.currentAmountField]);
-      });
+    // for (final salary in filteredSalaries) {
+    //   final salaryId = salary.key;
+    //   final baseAmount =
+    //       (salary.value[FirebaseConstants.totalAmountField] ?? 0)
+    //           .toDouble();
 
-      _updateExpenseStream(selectedBankId!, selectedSalaryItem);
-    } else {
-      // Exclude "All" item from totalSalary calculation
-      double totalSalary = 0;
-      for (var entry in salaryData) {
-        if (entry['id'] != AppConstants.allItem) {
-          // Skip "All" item
-          totalSalary += (entry[FirebaseConstants.currentAmountField] ?? 0.0);
-        }
-      }
+    //   bool includeThisSalary = false;
 
-      setState(() {
-        currentBalance = NumberFormat.currency(
-          locale: 'en_IN',
-          symbol: '₹',
-          decimalDigits: 0,
-        ).format(totalSalary);
-      });
+    //   if (selectedSalaryItem == AppConstants.allItem) {
+    //     includeThisSalary = true;
+    //   } else if (selectedSalaryItem == salaryId) {
+    //     includeThisSalary = true;
+    //   }
 
-      _updateExpenseStream(selectedBankId!);
-    }
+    //   if (!includeThisSalary) continue;
 
-    setState(() {});
+    //   calculatedBalance += baseAmount;
+
+    //   for (final expense in expenseDataRaw.values) {
+    //     final matchesBank = selectedBankId ==
+    //             AppConstants.allItem ||
+    //         selectedBankId == null ||
+    //         expense[FirebaseConstants.bankIdField] ==
+    //             selectedBankId;
+
+    //     final matchesSalary =
+    //         expense[FirebaseConstants.salaryDocumentIdField] ==
+    //             salaryId;
+
+    //     if (matchesBank && matchesSalary) {
+    //       final type =
+    //           expense[FirebaseConstants.transactionTypeField];
+    //       final amount =
+    //           (expense[FirebaseConstants.amountField] ?? 0)
+    //               .toDouble();
+
+    //       if (type == AppConstants.transactionTypeDeposit) {
+    //         calculatedBalance += amount;
+    //       } else {
+    //         calculatedBalance -= amount;
+    //         calculatedExpense += amount;
+    //       }
+    //     }
+    //   }
+    // }
+
+    setState(() {
+      currentBalance = NumberFormat.currency(
+        locale: AppConstants.englishIndiaLocale,
+        symbol: AppConstants.rupeesSymbol,
+        decimalDigits: 0,
+      ).format(calculatedBalance);
+
+      totalExpense = NumberFormat.currency(
+        locale: AppConstants.englishIndiaLocale,
+        symbol: AppConstants.rupeesSymbol,
+        decimalDigits: 0,
+      ).format(calculatedExpense);
+    });
+
+    _updateExpenseStream(
+      selectedBankId ?? AppConstants.allItem,
+      selectedSalaryItem == AppConstants.allItem
+          ? null
+          : selectedSalaryItem,
+    );
   }
 
   void _updateExpenseStream(String bankId, [String? salaryId]) {
-
     expenseDataStream = firebaseService
         .streamGetAllData(userEmail, FirebaseConstants.expenseCollection)
         .map((expenseData) {
+      final filtered = expenseData.entries.where((entry) {
+        final data = entry.value;
 
-      final filteredExpenses = expenseData.entries
-          .where((entry) {
-            final data = entry.value;
-            final matchesBank = data[FirebaseConstants.bankIdField] == bankId;
-            final matchesSalary = salaryId == null ||
-                data[FirebaseConstants.salaryDocumentIdField] == salaryId;
-            return matchesBank && matchesSalary;
-          })
-          .map((e) => MapEntry(e.key, e.value))
-          .toList();
+        final matchesBank = bankId == AppConstants.allItem ||
+            data[FirebaseConstants.bankIdField] == bankId;
 
-          // Calculate the total expenses for the filtered list
-          double totalExpenseAmount = 0;
-          for (var entry in filteredExpenses) {
-            if (entry.value[FirebaseConstants.transactionTypeField] != AppConstants.transactionTypeDeposit) 
-            {
-              totalExpenseAmount += (entry.value[FirebaseConstants.amountField] ?? 0.0);
-            }
-          }
+        final matchesSalary =
+            salaryId == null ||
+                data[AppConstants.salaryCategory] ==
+                    salaryId;
 
-          setState(() {
-            totalExpense = NumberFormat.currency(
-              locale: 'en_IN',
-              symbol: '₹',
-              decimalDigits: 0,
-            ).format(totalExpenseAmount);
-          });
+        return matchesBank && matchesSalary;
+      }).toList();
 
-      return Map.fromEntries(filteredExpenses);
+      return Map.fromEntries(filtered);
     });
   }
 
@@ -335,7 +335,7 @@ class InsightState extends State<Insight> {
                                     selectedBankId ?? "",
                                     userBanks.map((bank) {
                                       return DropdownMenuItem<String>(
-                                          value: bank['id'],
+                                          value: bank[FirebaseConstants.primaryIdField],
                                           child: Text(
                                             bank['name'],
                                             overflow: TextOverflow.ellipsis,
@@ -366,15 +366,13 @@ class InsightState extends State<Insight> {
                                     theme,
                                     selectedSalaryItem.isEmpty &&
                                             salaryData.isNotEmpty
-                                        ? salaryData.first['id']
+                                        ? salaryData.first[FirebaseConstants.primaryIdField]
                                         : selectedSalaryItem,
                                     salaryData.map((salary) {
                                       final salaryId =
-                                          salary['id']; // use doc ID as value
-                                      final displayAmount = salary[
-                                              FirebaseConstants
-                                                  .currentAmountField] ??
-                                          0;
+                                          salary[FirebaseConstants.primaryIdField]; // use doc ID as value
+                                      final displayAmount =
+                                          salary[FirebaseConstants.totalAmountField] ?? 0;
 
                                       return DropdownMenuItem<String>(
                                         value: salaryId,

@@ -21,6 +21,7 @@ class AppColors {
   static const Color transparent = Color(0x00000000);
   static const Color purple = Color(0xFF9C27B0);
   static const Color amber = Color(0xFFFFC107);
+  static const Color toggleButtonBackgroundColor = Color(0xFFC9C8C8);
 }
 
 class AppTextStyles {
@@ -138,7 +139,7 @@ class AppTheme {
           toggleButtonFillColor: AppColors.secondaryGreen,
           toggleButtonSelectedColor: Colors.white,
           toggleButtonTextColor: AppColors.primaryGreen,
-          toggleButtonBackgroundColor: Colors.transparent,
+          toggleButtonBackgroundColor: AppColors.toggleButtonBackgroundColor,
           modalBackgroundColor: Colors.white70,
           chipBackgroundColor: Colors.white60,
           dropdownBorderColor: AppColors.secondaryGreen,

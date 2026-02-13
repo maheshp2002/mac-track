@@ -14,27 +14,30 @@ class AppConstants {
   static const String reminderCustom = 'Custom';
   static const String transaction = 'Transaction';
   static const String balance = 'Balance';
+  static const String englishIndiaLocale = 'en_IN';
+  static const String rupeesSymbol = '₹';
+  static const String manualToggle= 'Manual';
+  static const String csvToggle = 'CSV';
+  static const String salaryCategory = 'Salary';
 }
 
 class FirebaseConstants {
   // Firebase Collections
   static const String userBankCollection = 'userBanks';
-  static const String salaryCollection = 'salary';
   static const String expenseCollection = 'expense';
   static const String banksCollection = 'banks';
   static const String mastersCollection = 'masters';
   static const String usersCollection = 'users';
   static const String expenseTypesCollection = 'expenseTypes';
+  static const String counterpartyCollection = 'counterparties';
 
   //Firebase Fields
   static const String primaryIdField = 'id';
   static const String nameField = 'name';
   static const String amountField = 'amount';
   static const String documentIdField = 'documentId';
-  static const String currentAmountField = 'currentAmount';
   static const String bankIdField = 'bankId';
   static const String expenseField = 'expense';
-  static const String salaryDocumentIdField = 'salaryDocumentId';
   static const String timestampField = 'timestamp';
   static const String expenseCategoryField = 'expenseCategory';
   static const String transactionTypeField = 'transactionType';
@@ -46,4 +49,8 @@ class FirebaseConstants {
   static const String isReminder = "isReminder";
   static const String isReminderCompletedField = "isReminderCompleted";
   static const String imageField = 'image';
+  static const String typeField = 'type';
+  static const String sourceField = 'source';
+  static const String counterpartyIdField = 'counterpartyId';
+  static const String counterpartyNameField = 'counterpartyName';
 }
