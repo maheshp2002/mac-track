@@ -9,6 +9,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:mac_track/ui/components/set_reminder.dart';
 import 'package:mac_track/config/constants.dart';
 import 'package:mac_track/ui/dialogues/add_bank.dart';
+import 'package:mac_track/ui/dialogues/expense_details_dialog.dart';
 import 'package:mac_track/ui/dialogues/manage_salary_dialog.dart';
 import 'package:mac_track/ui/widgets/common_dialog.dart';
 import 'package:mac_track/ui/widgets/filter_container.dart';
@@ -656,7 +657,7 @@ class HomePageState extends State<HomePage> {
         _buildTopRow(theme),
         const SizedBox(height: 10),
         Text(
-          _currentToggleIndex == 0 ? "Current Month" : "Total Balance",
+          _currentToggleIndex == 0 ? "Monthly Expense" : "Total Balance",
           style: AppTextStyles.bodyText,
         ),
         Text(
@@ -857,7 +858,8 @@ class HomePageState extends State<HomePage> {
                             currentMonthNet += amount;
                           }
 
-                          if (category == AppConstants.salaryCategory.toLowerCase() &&
+                          if (category ==
+                                  AppConstants.salaryCategory.toLowerCase() &&
                               isThisMonth) {
                             currentMonthSalary += amount;
                           }
@@ -1132,49 +1134,65 @@ class HomePageState extends State<HomePage> {
                                   ),
                                 ],
                               ),
-                              child: ListCard(
-                                image: categoryImage,
-                                title:
-                                    expense[FirebaseConstants.expenseField] ??
+                              child: GestureDetector(
+                                  onTap: () async {
+                                    await showDialog(
+                                      context: context,
+                                      builder: (BuildContext context) =>
+                                          ExpenseDetailsDialog(
+                                        email: userEmail,
+                                        selectedExpenseId: entry.key,
+                                      ),
+                                    );
+                                  },
+                                  child: ListCard(
+                                    image: categoryImage,
+                                    title: expense[
+                                            FirebaseConstants.expenseField] ??
                                         '',
-                                subTitle: Row(
-                                  children: [
-                                    Text(
-                                      expense[FirebaseConstants
-                                              .transactionTypeField] ??
-                                          '',
-                                      style:
-                                          Theme.of(context).textTheme.bodyLarge,
-                                    ),
-                                    expense[FirebaseConstants
-                                                .transactionTypeField] ==
-                                            AppConstants.transactionTypeDeposit
-                                        ? const Icon(FeatherIcons.arrowDownLeft,
-                                            color: AppColors.filterButtonGreen)
-                                        : expense[FirebaseConstants
+                                    subTitle: Row(
+                                      children: [
+                                        Text(
+                                          expense[FirebaseConstants
+                                                  .transactionTypeField] ??
+                                              '',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyLarge,
+                                        ),
+                                        expense[FirebaseConstants
                                                     .transactionTypeField] ==
                                                 AppConstants
-                                                    .transactionTypeWithdraw
+                                                    .transactionTypeDeposit
                                             ? const Icon(
-                                                FeatherIcons.arrowUpRight,
-                                                color: AppColors.danger)
-                                            : const Icon(FeatherIcons.arrowUp,
-                                                color: AppColors.danger)
-                                  ],
-                                ),
-                                suffix:
-                                    '₹${expense[FirebaseConstants.amountField]}',
-                                footer: Text(
-                                  formatTimestamp(expense[
-                                      FirebaseConstants.timestampField]),
-                                  style: TextStyle(
-                                    fontSize: Theme.of(context)
-                                        .textTheme
-                                        .labelSmall
-                                        ?.fontSize,
-                                  ),
-                                ),
-                              ),
+                                                FeatherIcons.arrowDownLeft,
+                                                color:
+                                                    AppColors.filterButtonGreen)
+                                            : expense[FirebaseConstants
+                                                        .transactionTypeField] ==
+                                                    AppConstants
+                                                        .transactionTypeWithdraw
+                                                ? const Icon(
+                                                    FeatherIcons.arrowUpRight,
+                                                    color: AppColors.danger)
+                                                : const Icon(
+                                                    FeatherIcons.arrowUp,
+                                                    color: AppColors.danger)
+                                      ],
+                                    ),
+                                    suffix:
+                                        '₹${expense[FirebaseConstants.amountField]}',
+                                    footer: Text(
+                                      formatTimestamp(expense[
+                                          FirebaseConstants.timestampField]),
+                                      style: TextStyle(
+                                        fontSize: Theme.of(context)
+                                            .textTheme
+                                            .labelSmall
+                                            ?.fontSize,
+                                      ),
+                                    ),
+                                  )),
                             );
                           }).toList(),
                         );

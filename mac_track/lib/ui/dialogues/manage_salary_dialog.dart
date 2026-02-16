@@ -218,10 +218,6 @@ class ManageSalaryDialogState extends State<ManageSalaryDialog> {
                                           FirebaseConstants
                                               .expenseCollection,
                                         );
-
-                                        if (mounted) {
-                                          Navigator.of(context).pop();
-                                        }
                                       } catch (_) {
                                         showToast(
                                           "Delete failed!",

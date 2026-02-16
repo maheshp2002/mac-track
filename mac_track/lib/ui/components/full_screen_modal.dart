@@ -7,10 +7,12 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:mac_track/ui/components/toast.dart';
 import 'package:mac_track/services/csv_transaction_importer.dart';
 import 'package:mac_track/ui/widgets/common_dialog.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:toggle_switch/toggle_switch.dart';
 import '../../config/constants.dart';
 import '../../services/firebase_service.dart';
 import '../theme.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 
 class FullScreenModal extends StatefulWidget {
   final Map<String, dynamic>? expense;
@@ -41,7 +43,6 @@ class FullScreenModalState extends State<FullScreenModal> {
   bool iosStyle = true;
   StreamSubscription<Map<String, dynamic>>? _userBankSub;
   final FirebaseService _firebaseService = FirebaseService();
-  String? _selectedCounterpartyId;
   Map<String, String> _expenseCategoryMap = {}; // name -> document ID
   List<String> _expenseCategoryNames = [];
   String? _selectedExpenseCategory;
@@ -49,7 +50,8 @@ class FullScreenModalState extends State<FullScreenModal> {
   int _entryModeIndex = 0;
   bool _isImporting = false;
   PlatformFile? _pickedFile;
-  bool _isFormValid = false;
+  String? _selectedContactName;
+  String? _selectedContactPhone;
   // Dropdown related variables
   String _selectedTransactionType = AppConstants.transactionTypeWithdraw;
   final List<String> _transactionTypes = [
@@ -59,16 +61,18 @@ class FullScreenModalState extends State<FullScreenModal> {
   ];
 
   // Getter
-  bool get _isManualValid {
-    return _selectedBankId != null && _isFormValid && _isFormChanged;
-  }
-
   bool get _isCsvValid {
     return _selectedBankId != null && _pickedFile != null;
   }
-
   bool get _isSalaryCategorySelected =>
       _selectedExpenseCategory == AppConstants.salaryCategory;
+  bool get _isEditMode =>
+      widget.expenseId != null && widget.expense != null;
+  bool get _isCurrentFormValid {
+    return _validateAmount(_amountController.text) == null &&
+        _validateExpenseType(_expenseController.text) == null &&
+        _selectedBankId != null;
+  }
 
   @override
   void initState() {
@@ -121,36 +125,43 @@ class FullScreenModalState extends State<FullScreenModal> {
         setModalData();
       }
     });
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null && user.email != null) {
-      counterpartyStream = _firebaseService.streamGetAllData(
-        user.email!,
-        FirebaseConstants.counterpartyCollection,
-      );
-    } else {
-      counterpartyStream = const Stream.empty();
-    }
   }
 
   void setModalData() {
+    final expense = widget.expense;
+
+    if (expense == null) return;
+
     setState(() {
       _amountController.text =
-          widget.expense?[FirebaseConstants.amountField].toString() ?? '';
+          expense[FirebaseConstants.amountField]?.toString() ?? '';
+
       _expenseController.text =
-          widget.expense?[FirebaseConstants.expenseField] ?? '';
-      _selectedBankId = widget.expense?[FirebaseConstants.bankIdField];
+          expense[FirebaseConstants.expenseField] ?? '';
+
+      _selectedBankId =
+          expense[FirebaseConstants.bankIdField];
+
       _selectedTransactionType =
-          widget.expense?[FirebaseConstants.transactionTypeField];
+          expense[FirebaseConstants.transactionTypeField] ??
+              AppConstants.transactionTypeWithdraw;
+
       _selectedExpenseCategoryId =
-          widget.expense?[FirebaseConstants.expenseCategoryField];
+          expense[FirebaseConstants.expenseCategoryField];
 
       final selectedCategoryId =
-          widget.expense?[FirebaseConstants.expenseCategoryField];
+          expense[FirebaseConstants.expenseCategoryField];
+
       _selectedExpenseCategory = _expenseCategoryMap.entries
-          .firstWhere((entry) => entry.value == selectedCategoryId,
-              orElse: () => const MapEntry('', ''))
+          .firstWhere(
+            (entry) => entry.value == selectedCategoryId,
+            orElse: () => const MapEntry('', ''),
+          )
           .key;
+
+      // Restore contact in edit mode
+      _selectedContactName = expense['counterpartyName'];
+      _selectedContactPhone = expense['counterpartyPhone'];
     });
   }
 
@@ -203,16 +214,6 @@ class FullScreenModalState extends State<FullScreenModal> {
         userBanks = updatedUserBanks;
       });
     });
-  }
-
-  void _evaluateFormValidity() {
-    final isValid = _formKey.currentState?.validate() ?? false;
-
-    if (_isFormValid != isValid) {
-      setState(() {
-        _isFormValid = isValid;
-      });
-    }
   }
 
   String? _validateAmount(String? value) {
@@ -296,12 +297,15 @@ class FullScreenModalState extends State<FullScreenModal> {
       FirebaseConstants.transactionTypeField: _selectedTransactionType,
       FirebaseConstants.expenseCategoryField:
           _selectedExpenseCategoryId ?? _selectedExpenseCategory?.toLowerCase(),
-      FirebaseConstants.timestampField: DateTime.now(),
+      FirebaseConstants.timestampField: isEditMode
+        ? widget.expense![FirebaseConstants.timestampField]
+        : DateTime.now(),
+      FirebaseConstants.updatedAtField:  DateTime.now(),
     };
 
-    if (_selectedCounterpartyId != null) {
-      expenseData[FirebaseConstants.counterpartyIdField] =
-          _selectedCounterpartyId;
+    if (_selectedContactPhone != null && _selectedContactName != null) {
+      expenseData['counterpartyName'] = _selectedContactName;
+      expenseData['counterpartyPhone'] = _selectedContactPhone;
     }
 
     try {
@@ -333,18 +337,26 @@ class FullScreenModalState extends State<FullScreenModal> {
   void checkFormChanged() {
     final original = widget.expense;
 
-    final isChanged = (_amountController.text !=
-            (original?[FirebaseConstants.amountField]?.toString() ?? '')) ||
-        (_expenseController.text !=
-            (original?[FirebaseConstants.expenseField] ?? '')) ||
-        (_selectedTransactionType !=
-            (original?[FirebaseConstants.transactionTypeField] ??
-                AppConstants.transactionTypeWithdraw)) ||
-        (_selectedBankId != (original?[FirebaseConstants.bankIdField])) ||
-        (_selectedExpenseCategoryId !=
-            (original?[FirebaseConstants.expenseCategoryField])) ||
-        (_selectedCounterpartyId !=
-            original?[FirebaseConstants.counterpartyIdField]);
+    if (original == null) {
+      setState(() => _isFormChanged = true);
+      return;
+    }
+
+    final isChanged =
+        _amountController.text !=
+                (original[FirebaseConstants.amountField]?.toString() ?? '') ||
+        _expenseController.text !=
+                (original[FirebaseConstants.expenseField] ?? '') ||
+        _selectedTransactionType !=
+                (original[FirebaseConstants.transactionTypeField] ??
+                    AppConstants.transactionTypeWithdraw) ||
+        _selectedBankId !=
+                original[FirebaseConstants.bankIdField] ||
+        _selectedExpenseCategoryId !=
+                original[FirebaseConstants.expenseCategoryField] ||
+        _selectedContactName != original['counterpartyName'] ||
+        _selectedContactPhone != original['counterpartyPhone'];
+
     setState(() {
       _isFormChanged = isChanged;
     });
@@ -438,6 +450,115 @@ class FullScreenModalState extends State<FullScreenModal> {
     return result ?? false;
   }
 
+  Future<void> _pickContact() async {
+    final permission = await Permission.contacts.request();
+    final theme = Theme.of(context);
+
+    if (!permission.isGranted) {
+      showToast('Contacts permission denied');
+      return;
+    }
+
+    final contacts = await FlutterContacts.getContacts(
+      withProperties: true,
+      withPhoto: false,
+    );
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: theme.scaffoldBackgroundColor,
+      builder: (context) {
+        List<Contact> filtered = contacts;
+        final searchController = TextEditingController();
+
+        return StatefulBuilder(builder: (context, setModalState) {
+          return SizedBox(
+            height: MediaQuery.of(context).size.height * 0.8,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Select Contact",
+                        style: theme.textTheme.titleLarge,
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close, color: theme.iconTheme.color),
+                        onPressed: () => Navigator.pop(context),
+                      )
+                    ],
+                  ),
+                ),
+
+                // ===== SEARCH FIELD =====
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: TextField(
+                    controller: searchController,
+                    style: theme.textTheme.bodyLarge,
+                    decoration: InputDecoration(
+                      labelText: "Search Contact",
+                      labelStyle: theme.textTheme.labelSmall,
+                      border: const OutlineInputBorder(),
+                      focusedBorder: const OutlineInputBorder(
+                        borderSide: BorderSide(color: AppColors.secondary),
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setModalState(() {
+                        filtered = contacts
+                            .where((c) => c.displayName
+                                .toLowerCase()
+                                .contains(value.toLowerCase()))
+                            .toList();
+                      });
+                    },
+                  ),
+                ),
+
+                // ===== CONTACT LIST =====
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final contact = filtered[index];
+
+                      if (contact.phones.isEmpty) return const SizedBox();
+
+                      final phone = contact.phones.first.number
+                          .replaceAll(RegExp(r'\s+'), '');
+
+                      return ListTile(
+                        title: Text(contact.displayName,
+                            style: theme.textTheme.bodyLarge),
+                        subtitle: Text(phone, style: theme.textTheme.bodySmall),
+                        onTap: () {
+                          setState(() {
+                            _selectedContactName = contact.displayName;
+                            _selectedContactPhone = phone;
+                          });
+
+                          Navigator.pop(context);
+                          checkFormChanged();
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        });
+      },
+    );
+  }
+
   @override
   void dispose() {
     // CANCEL STREAM SUBSCRIPTION
@@ -463,426 +584,470 @@ class FullScreenModalState extends State<FullScreenModal> {
           color: customTheme?.modalBackgroundColor ?? Colors.white,
           child: Form(
             key: _formKey,
-            child: ListView(
+            child: Column(
               children: [
                 // Close Button
                 Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Align(
-                    alignment: Alignment.topRight,
-                    child: IconButton(
-                      icon: Icon(
-                        FontAwesomeIcons.xmark,
-                        color: theme.iconTheme.color ?? Colors.black,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Add Expense",
+                        style: theme.textTheme.displayLarge,
                       ),
-                      onPressed: () {
-                        Navigator.of(context)
-                            .pop(AppConstants.refresh); // Close the popup
-                      },
-                    ),
+                      IconButton(
+                        icon: Icon(
+                          FontAwesomeIcons.xmark,
+                          color: theme.iconTheme.color,
+                        ),
+                        onPressed: () {
+                          Navigator.of(context).pop(AppConstants.refresh);
+                        },
+                      ),
+                    ],
                   ),
                 ),
                 // Content of the Popup
-                SingleChildScrollView(
-                  padding: EdgeInsets.only(
-                    left: 16.0,
-                    right: 16.0,
-                    bottom: MediaQuery.of(context).viewInsets.bottom + 16.0,
-                  ),
-                  child: StreamBuilder<Map<String, dynamic>>(
-                    stream: _bankDataStream,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                            child: CircularProgressIndicator(
-                          color: AppColors.secondaryGreen,
-                        ));
-                      } else if (snapshot.hasError) {
-                        return Center(
-                            child: Text("An Error Occurred",
-                                style: theme.textTheme.bodyLarge));
-                      } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                        return Center(
-                            child: Text(
-                          "No bank data available.",
-                          style: theme.textTheme.bodyLarge,
-                        ));
-                      } else {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Add Expense",
-                              style: theme.textTheme.displayLarge,
-                            ),
-                            const SizedBox(height: 20),
-                            Center(
-                              child: ToggleSwitch(
-                                minWidth: 100.0,
-                                cornerRadius: 20.0,
-                                activeBgColors: [
-                                  [customTheme!.toggleButtonFillColor],
-                                  [customTheme.toggleButtonFillColor],
-                                ],
-                                activeFgColor:
-                                    customTheme.toggleButtonSelectedColor,
-                                inactiveBgColor:
-                                    customTheme.toggleButtonBackgroundColor,
-                                inactiveFgColor:
-                                    customTheme.toggleButtonTextColor,
-                                initialLabelIndex: _entryModeIndex,
-                                totalSwitches: 2,
-                                labels: const [
-                                  AppConstants.manualToggle,
-                                  AppConstants.csvToggle
-                                ],
-                                radiusStyle: true,
-                                onToggle: (index) {
-                                  setState(() {
-                                    _entryModeIndex = index!;
-                                  });
-                                },
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            if (_entryModeIndex == 0) ...[
-                              TextFormField(
-                                controller: _amountController,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                        decimal: true),
-                                maxLength: 10,
-                                focusNode: _amountFocusNode,
-                                decoration: InputDecoration(
-                                  labelText: 'Amount',
-                                  labelStyle: TextStyle(
-                                      color: theme.textTheme.bodyLarge?.color),
-                                  suffixIcon: Icon(
-                                    FontAwesomeIcons.indianRupeeSign,
-                                    color: _isAmountValid
-                                        ? _amountFocusNode.hasFocus
-                                            ? AppColors
-                                                .secondary // Color when focused
-                                            : theme.iconTheme
-                                                .color // Color when not focused
-                                        : Colors
-                                            .red, // Color when validation fails
-                                  ),
-                                  border: const OutlineInputBorder(),
-                                  focusedBorder: const OutlineInputBorder(
-                                    borderSide:
-                                        BorderSide(color: AppColors.secondary),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.only(
+                      left: 16.0,
+                      right: 16.0,
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 16.0,
+                    ),
+                    child: StreamBuilder<Map<String, dynamic>>(
+                      stream: _bankDataStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                              child: CircularProgressIndicator(
+                            color: AppColors.secondaryGreen,
+                          ));
+                        } else if (snapshot.hasError) {
+                          return Center(
+                              child: Text("An Error Occurred",
+                                  style: theme.textTheme.bodyLarge));
+                        } else if (!snapshot.hasData ||
+                            snapshot.data!.isEmpty) {
+                          return Center(
+                              child: Text(
+                            "No bank data available.",
+                            style: theme.textTheme.bodyLarge,
+                          ));
+                        } else {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (!_isEditMode)
+                                Center(
+                                  child: ToggleSwitch(
+                                    minWidth: 100.0,
+                                    cornerRadius: 20.0,
+                                    activeBgColors: [
+                                      [customTheme!.toggleButtonFillColor],
+                                      [customTheme.toggleButtonFillColor],
+                                    ],
+                                    activeFgColor:
+                                        customTheme.toggleButtonSelectedColor,
+                                    inactiveBgColor:
+                                        customTheme.toggleButtonBackgroundColor,
+                                    inactiveFgColor:
+                                        customTheme.toggleButtonTextColor,
+                                    initialLabelIndex: _entryModeIndex,
+                                    totalSwitches: 2,
+                                    labels: const [
+                                      AppConstants.manualToggle,
+                                      AppConstants.csvToggle
+                                    ],
+                                    radiusStyle: true,
+                                    onToggle: (index) {
+                                      setState(() {
+                                        _entryModeIndex = index!;
+                                      });
+                                    },
                                   ),
                                 ),
-                                cursorColor: AppColors.secondary,
-                                onChanged: (value) {
-                                  _evaluateFormValidity();
-                                  checkFormChanged();
-                                },
-                                validator: _validateAmount,
-                              ),
                               const SizedBox(height: 20),
-                              DropdownButtonFormField<String>(
-                                dropdownColor: theme.scaffoldBackgroundColor,
-                                icon: Icon(
-                                  FontAwesomeIcons.moneyBillTrendUp,
-                                  color: theme.iconTheme.color,
-                                ),
-                                initialValue: _selectedExpenseCategory,
-                                items: _expenseCategoryNames.map((String name) {
-                                  return DropdownMenuItem<String>(
-                                    value: name,
-                                    child: Text(name,
-                                        style: theme.textTheme.bodyLarge),
-                                  );
-                                }).toList(),
-                                onChanged: (selectedName) {
-                                  setState(() {
-                                    _selectedExpenseCategory = selectedName!;
-                                    _selectedExpenseCategoryId =
-                                        _expenseCategoryMap[selectedName];
-
-                                    if (_selectedExpenseCategory !=
-                                        AppConstants.otherCategory) {
-                                      _expenseController.text =
-                                          _selectedExpenseCategory!;
-                                    }
-
-                                    if (selectedName ==
-                                        AppConstants.salaryCategory) {
-                                      _selectedTransactionType =
-                                          AppConstants.transactionTypeDeposit;
-                                    } else {
-                                      // Reset to default withdraw when switching away from salary
-                                      _selectedTransactionType =
-                                          AppConstants.transactionTypeWithdraw;
-                                    }
-                                  });
-                                  _evaluateFormValidity();
-                                  checkFormChanged();
-                                },
-                                decoration: InputDecoration(
-                                    labelText: 'Expense Category',
-                                    labelStyle: theme.textTheme.labelSmall,
+                              if (_entryModeIndex == 0) ...[
+                                TextFormField(
+                                  controller: _amountController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
+                                  maxLength: 10,
+                                  focusNode: _amountFocusNode,
+                                  decoration: InputDecoration(
+                                    labelText: 'Amount',
+                                    labelStyle: TextStyle(
+                                        color:
+                                            theme.textTheme.bodyLarge?.color),
+                                    suffixIcon: Icon(
+                                      FontAwesomeIcons.indianRupeeSign,
+                                      color: _isAmountValid
+                                          ? _amountFocusNode.hasFocus
+                                              ? AppColors
+                                                  .secondary // Color when focused
+                                              : theme.iconTheme
+                                                  .color // Color when not focused
+                                          : Colors
+                                              .red, // Color when validation fails
+                                    ),
                                     border: const OutlineInputBorder(),
                                     focusedBorder: const OutlineInputBorder(
                                       borderSide: BorderSide(
                                           color: AppColors.secondary),
-                                    )),
-                              ),
-                              const SizedBox(height: 30),
-                              TextFormField(
-                                enabled: _selectedExpenseCategory ==
-                                    AppConstants.otherCategory,
-                                controller: _expenseController,
-                                maxLength: 15,
-                                focusNode: _expenseFocusNode,
-                                decoration: InputDecoration(
-                                  labelText: 'Expense Type',
-                                  labelStyle: TextStyle(
-                                      color: theme.textTheme.bodyLarge?.color),
-                                  suffixIcon: Icon(
-                                    FontAwesomeIcons.receipt,
-                                    color: _isExpenseTypeValid
-                                        ? _expenseFocusNode.hasFocus
-                                            ? AppColors.secondary
-                                            : theme.iconTheme.color
-                                        : Colors.red,
-                                  ),
-                                  border: const OutlineInputBorder(),
-                                  focusedBorder: const OutlineInputBorder(
-                                    borderSide:
-                                        BorderSide(color: AppColors.secondary),
-                                  ),
-                                ),
-                                cursorColor: AppColors.secondary,
-                                onChanged: (value) {
-                                  _formKey.currentState?.validate();
-                                  _updateValidationState();
-                                  checkFormChanged();
-                                },
-                                validator: _validateExpenseType,
-                              ),
-                              const SizedBox(height: 20),
-                              DropdownButtonFormField<String>(
-                                dropdownColor: theme.scaffoldBackgroundColor,
-                                icon: Icon(
-                                  FontAwesomeIcons.moneyBillTransfer,
-                                  color: _isSalaryCategorySelected
-                                      ? Colors.grey
-                                      : theme.iconTheme.color,
-                                ),
-                                initialValue: _selectedTransactionType,
-                                items: _transactionTypes.map((String type) {
-                                  return DropdownMenuItem<String>(
-                                    value: type,
-                                    child: Text(
-                                      type,
-                                      style: _isSalaryCategorySelected
-                                          ? theme.textTheme.bodyLarge
-                                              ?.copyWith(color: Colors.grey)
-                                          : theme.textTheme.bodyLarge,
                                     ),
-                                  );
-                                }).toList(),
+                                  ),
+                                  cursorColor: AppColors.secondary,
+                                  onChanged: (value) {
+                                    checkFormChanged();
+                                  },
+                                  validator: _validateAmount,
+                                ),
+                                const SizedBox(height: 20),
+                                DropdownButtonFormField<String>(
+                                  dropdownColor: theme.scaffoldBackgroundColor,
+                                  icon: Icon(
+                                    FontAwesomeIcons.moneyBillTrendUp,
+                                    color: theme.iconTheme.color,
+                                  ),
+                                  initialValue: _selectedExpenseCategory,
+                                  items:
+                                      _expenseCategoryNames.map((String name) {
+                                    return DropdownMenuItem<String>(
+                                      value: name,
+                                      child: Text(name,
+                                          style: theme.textTheme.bodyLarge),
+                                    );
+                                  }).toList(),
+                                  onChanged: (selectedName) {
+                                    setState(() {
+                                      _selectedExpenseCategory = selectedName!;
+                                      _selectedExpenseCategoryId =
+                                          _expenseCategoryMap[selectedName];
 
-                                // Disable editing if Salary category selected
-                                onChanged: _isSalaryCategorySelected
-                                    ? null
-                                    : (newValue) {
-                                        setState(() {
-                                          _selectedTransactionType = newValue!;
-                                        });
-                                        checkFormChanged();
-                                      },
-                                decoration: InputDecoration(
-                                  labelText: 'Transaction Type',
-                                  labelStyle: _isSalaryCategorySelected
-                                      ? theme.textTheme.labelSmall
-                                          ?.copyWith(color: Colors.grey)
-                                      : theme.textTheme.labelSmall,
-                                  border: const OutlineInputBorder(),
-                                  focusedBorder: const OutlineInputBorder(
-                                    borderSide:
-                                        BorderSide(color: AppColors.secondary),
+                                      if (_selectedExpenseCategory !=
+                                          AppConstants.otherCategory) {
+                                        _expenseController.text =
+                                            _selectedExpenseCategory!;
+                                      }
+
+                                      if (selectedName ==
+                                          AppConstants.salaryCategory) {
+                                        // Force deposit
+                                        _selectedTransactionType =
+                                            AppConstants.transactionTypeDeposit;
+
+                                        // CLEAR CONTACT SELECTION (salary should not have counterparty)
+                                        _selectedContactName = null;
+                                        _selectedContactPhone = null;
+                                      } else {
+                                        _selectedTransactionType = AppConstants
+                                            .transactionTypeWithdraw;
+                                      }
+                                    });
+                                    checkFormChanged();
+                                  },
+                                  decoration: InputDecoration(
+                                      labelText: 'Expense Category',
+                                      labelStyle: theme.textTheme.labelSmall,
+                                      border: const OutlineInputBorder(),
+                                      focusedBorder: const OutlineInputBorder(
+                                        borderSide: BorderSide(
+                                            color: AppColors.secondary),
+                                      )),
+                                ),
+                                const SizedBox(height: 30),
+                                TextFormField(
+                                  enabled: _selectedExpenseCategory ==
+                                      AppConstants.otherCategory,
+                                  controller: _expenseController,
+                                  maxLength: 15,
+                                  focusNode: _expenseFocusNode,
+                                  decoration: InputDecoration(
+                                    labelText: 'Expense Type',
+                                    labelStyle: TextStyle(
+                                        color:
+                                            theme.textTheme.bodyLarge?.color),
+                                    suffixIcon: Icon(
+                                      FontAwesomeIcons.receipt,
+                                      color: _isExpenseTypeValid
+                                          ? _expenseFocusNode.hasFocus
+                                              ? AppColors.secondary
+                                              : theme.iconTheme.color
+                                          : Colors.red,
+                                    ),
+                                    border: const OutlineInputBorder(),
+                                    focusedBorder: const OutlineInputBorder(
+                                      borderSide: BorderSide(
+                                          color: AppColors.secondary),
+                                    ),
+                                  ),
+                                  cursorColor: AppColors.secondary,
+                                  onChanged: (value) {
+                                    _formKey.currentState?.validate();
+                                    _updateValidationState();
+                                    checkFormChanged();
+                                  },
+                                  validator: _validateExpenseType,
+                                ),
+                                const SizedBox(height: 20),
+                                DropdownButtonFormField<String>(
+                                  dropdownColor: theme.scaffoldBackgroundColor,
+                                  icon: Icon(
+                                    FontAwesomeIcons.moneyBillTransfer,
+                                    color: _isSalaryCategorySelected
+                                        ? Colors.grey
+                                        : theme.iconTheme.color,
+                                  ),
+                                  initialValue: _selectedTransactionType,
+                                  items: _transactionTypes.map((String type) {
+                                    return DropdownMenuItem<String>(
+                                      value: type,
+                                      child: Text(
+                                        type,
+                                        style: _isSalaryCategorySelected
+                                            ? theme.textTheme.bodyLarge
+                                                ?.copyWith(color: Colors.grey)
+                                            : theme.textTheme.bodyLarge,
+                                      ),
+                                    );
+                                  }).toList(),
+
+                                  // Disable editing if Salary category selected
+                                  onChanged: _isSalaryCategorySelected
+                                      ? null
+                                      : (newValue) {
+                                          setState(() {
+                                            _selectedTransactionType =
+                                                newValue!;
+                                          });
+                                          checkFormChanged();
+                                        },
+                                  decoration: InputDecoration(
+                                    labelText: 'Transaction Type',
+                                    labelStyle: _isSalaryCategorySelected
+                                        ? theme.textTheme.labelSmall
+                                            ?.copyWith(color: Colors.grey)
+                                        : theme.textTheme.labelSmall,
+                                    border: const OutlineInputBorder(),
+                                    focusedBorder: const OutlineInputBorder(
+                                      borderSide: BorderSide(
+                                          color: AppColors.secondary),
+                                    ),
                                   ),
                                 ),
-                              ),
-                              // const SizedBox(height: 20),
-                              // StreamBuilder<Map<String, dynamic>>(
-                              //   stream: counterpartyStream,
-                              //   builder: (context, snapshot) {
-                              //     if (!snapshot.hasData)
-                              //       return const SizedBox();
-
-                              //     final counterparties = snapshot.data!;
-
-                              //     return Column(
-                              //       crossAxisAlignment:
-                              //           CrossAxisAlignment.start,
-                              //       children: [
-                              //         Text(
-                              //           "Select Contact (Optional)",
-                              //           style: theme.textTheme.labelSmall,
-                              //         ),
-                              //         const SizedBox(height: 10),
-                              //         Wrap(
-                              //           spacing: 8,
-                              //           runSpacing: 8,
-                              //           children:
-                              //               counterparties.entries.map((entry) {
-                              //             final data = entry.value;
-                              //             final name =
-                              //                 data[FirebaseConstants.nameField];
-                              //             final safeName =
-                              //                 (name ?? '').toString().trim();
-                              //             final initials = safeName.isEmpty
-                              //                 ? '?'
-                              //                 : safeName
-                              //                     .split(' ')
-                              //                     .where((e) => e.isNotEmpty)
-                              //                     .take(2)
-                              //                     .map((e) => e[0])
-                              //                     .join()
-                              //                     .toUpperCase();
-
-                              //             return ChoiceChip(
-                              //               label: Text(safeName),
-                              //               selected: _selectedCounterpartyId ==
-                              //                   entry.key,
-                              //               avatar: CircleAvatar(
-                              //                 child: Text(initials),
-                              //               ),
-                              //               onSelected: (selected) {
-                              //                 setState(() {
-                              //                   _selectedCounterpartyId =
-                              //                       selected ? entry.key : null;
-                              //                 });
-                              //               },
-                              //             );
-                              //           }).toList(),
-                              //         ),
-                              //       ],
-                              //     );
-                              //   },
-                              // ),
-                            ],
-                            if (_entryModeIndex == 1)
-                              GestureDetector(
-                                onTap: () async {
-                                  final result =
-                                      await FilePicker.platform.pickFiles(
-                                    type: FileType.custom,
-                                    allowedExtensions: ['csv'],
-                                  );
-
-                                  if (result != null) {
-                                    setState(() {
-                                      _pickedFile = result.files.first;
-                                    });
-                                  }
-                                },
-                                child: SizedBox(
-                                    width: double.infinity,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(20),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(
-                                            color: AppColors.secondaryGreen),
-                                      ),
-                                      child: _pickedFile == null
-                                          ? Column(
-                                              children: [
-                                                const Icon(
-                                                    FontAwesomeIcons.fileCsv,
-                                                    size: 40),
-                                                const SizedBox(height: 10),
-                                                Text(
-                                                  "Tap to select CSV",
-                                                  style:
-                                                      theme.textTheme.bodySmall,
-                                                ),
-                                              ],
-                                            )
-                                          : Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                Row(
-                                                  children: [
-                                                    const Icon(FontAwesomeIcons
-                                                        .fileCsv),
-                                                    const SizedBox(width: 10),
-                                                    SizedBox(
-                                                      width: 150,
-                                                      child: Text(
-                                                        _pickedFile!.name,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
+                                const SizedBox(height: 20),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Select Contact (Optional)",
+                                      style: _isSalaryCategorySelected
+                                          ? theme.textTheme.labelSmall
+                                              ?.copyWith(color: Colors.grey)
+                                          : theme.textTheme.labelSmall,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    if (_selectedContactName == null)
+                                      OutlinedButton.icon(
+                                        onPressed: _isSalaryCategorySelected
+                                            ? null
+                                            : _pickContact,
+                                        icon: Icon(
+                                          Icons.person_add,
+                                          color: _isSalaryCategorySelected
+                                              ? Colors.grey
+                                              : AppColors.secondaryGreen,
+                                        ),
+                                        label: Text(
+                                          "Choose Contact",
+                                          style: theme.textTheme.bodyLarge!
+                                              .copyWith(
+                                            color: _isSalaryCategorySelected
+                                                ? Colors.grey
+                                                : AppColors.secondaryGreen,
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      Opacity(
+                                        opacity:
+                                            _isSalaryCategorySelected ? 0.5 : 1,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: _isSalaryCategorySelected
+                                                  ? Colors.grey
+                                                  : AppColors.secondaryGreen,
+                                            ),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    _selectedContactName!,
+                                                    style: theme
+                                                        .textTheme.bodyLarge,
+                                                  ),
+                                                  Text(
+                                                    _selectedContactPhone!,
+                                                    style: theme
+                                                        .textTheme.bodySmall,
+                                                  ),
+                                                ],
+                                              ),
+                                              if (!_isSalaryCategorySelected)
                                                 IconButton(
                                                   icon: const Icon(Icons.close),
                                                   onPressed: () {
                                                     setState(() {
-                                                      _pickedFile = null;
+                                                      _selectedContactName =
+                                                          null;
+                                                      _selectedContactPhone =
+                                                          null;
                                                     });
+                                                    checkFormChanged();
                                                   },
                                                 )
-                                              ],
-                                            ),
-                                    )),
-                              ),
-                            const SizedBox(height: 20),
-                            Wrap(
-                              spacing: 8.0,
-                              runSpacing: 4.0,
-                              children: userBanks
-                                  .map<Widget>((entry) => ChoiceChip(
-                                        showCheckmark: false,
-                                        avatar: Image.network(entry[
-                                            FirebaseConstants.imageField]),
-                                        label: Text(
-                                            entry[FirebaseConstants.nameField]),
-                                        labelStyle: TextStyle(
-                                          color: _selectedBankId ==
-                                                  entry[FirebaseConstants
-                                                      .primaryIdField]
-                                              ? Colors.white
-                                              : theme
-                                                  .textTheme.bodyLarge!.color,
+                                            ],
+                                          ),
                                         ),
-                                        selectedColor: AppColors.secondary,
-                                        backgroundColor:
-                                            customTheme.chipBackgroundColor,
-                                        shape: RoundedRectangleBorder(
+                                      ),
+                                  ],
+                                ),
+                              ],
+                              if (_entryModeIndex == 1)
+                                GestureDetector(
+                                  onTap: () async {
+                                    final result =
+                                        await FilePicker.platform.pickFiles(
+                                      type: FileType.custom,
+                                      allowedExtensions: ['csv'],
+                                    );
+
+                                    if (result != null) {
+                                      setState(() {
+                                        _pickedFile = result.files.first;
+                                      });
+                                    }
+                                  },
+                                  child: SizedBox(
+                                      width: double.infinity,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(20),
+                                        decoration: BoxDecoration(
                                           borderRadius:
-                                              BorderRadius.circular(50.0),
+                                              BorderRadius.circular(16),
+                                          border: Border.all(
+                                              color: AppColors.secondaryGreen),
                                         ),
-                                        selected: _selectedBankId ==
-                                            entry[FirebaseConstants
-                                                .primaryIdField], // Compare document ID
-                                        onSelected: (selected) {
-                                          setState(() {
-                                            _selectedBankId = selected
-                                                ? entry[FirebaseConstants
-                                                    .primaryIdField]
-                                                // Store document ID
-                                                : null;
-                                          });
-                                          checkFormChanged();
-                                        },
-                                      ))
-                                  .toList(),
-                            )
-                          ],
-                        );
-                      }
-                    },
+                                        child: _pickedFile == null
+                                            ? Column(
+                                                children: [
+                                                  const Icon(
+                                                      FontAwesomeIcons.fileCsv,
+                                                      size: 40),
+                                                  const SizedBox(height: 10),
+                                                  Text(
+                                                    "Tap to select CSV",
+                                                    style: theme
+                                                        .textTheme.bodySmall,
+                                                  ),
+                                                ],
+                                              )
+                                            : Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      const Icon(
+                                                          FontAwesomeIcons
+                                                              .fileCsv),
+                                                      const SizedBox(width: 10),
+                                                      SizedBox(
+                                                        width: 150,
+                                                        child: Text(
+                                                          _pickedFile!.name,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  IconButton(
+                                                    icon:
+                                                        const Icon(Icons.close),
+                                                    onPressed: () {
+                                                      setState(() {
+                                                        _pickedFile = null;
+                                                      });
+                                                    },
+                                                  )
+                                                ],
+                                              ),
+                                      )),
+                                ),
+                              const SizedBox(height: 20),
+                              Wrap(
+                                spacing: 8.0,
+                                runSpacing: 4.0,
+                                children: userBanks
+                                    .map<Widget>((entry) => ChoiceChip(
+                                          showCheckmark: false,
+                                          avatar: Image.network(entry[
+                                              FirebaseConstants.imageField]),
+                                          label: Text(entry[
+                                              FirebaseConstants.nameField]),
+                                          labelStyle: TextStyle(
+                                            color: _selectedBankId ==
+                                                    entry[FirebaseConstants
+                                                        .primaryIdField]
+                                                ? Colors.white
+                                                : theme
+                                                    .textTheme.bodyLarge!.color,
+                                          ),
+                                          selectedColor: AppColors.secondary,
+                                          backgroundColor:
+                                              customTheme!.chipBackgroundColor,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(50.0),
+                                          ),
+                                          selected: _selectedBankId ==
+                                              entry[FirebaseConstants
+                                                  .primaryIdField], // Compare document ID
+                                          onSelected: (selected) {
+                                            setState(() {
+                                              _selectedBankId = selected
+                                                  ? entry[FirebaseConstants
+                                                      .primaryIdField]
+                                                  // Store document ID
+                                                  : null;
+                                            });
+                                            checkFormChanged();
+                                          },
+                                        ))
+                                    .toList(),
+                              )
+                            ],
+                          );
+                        }
+                      },
+                    ),
                   ),
                 ),
                 // Save Button
@@ -892,8 +1057,11 @@ class FullScreenModalState extends State<FullScreenModal> {
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Builder(
                       builder: (context) {
-                        final isEnabled =
-                            _entryModeIndex == 0 ? _isManualValid : _isCsvValid;
+                        final isEnabled = _isEditMode
+                          ? (_isCurrentFormValid && _isFormChanged)
+                          : (_entryModeIndex == 0
+                              ? (_isCurrentFormValid && _isFormChanged)
+                              : _isCsvValid);
 
                         return ElevatedButton(
                           style: ElevatedButton.styleFrom(

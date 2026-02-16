@@ -53,4 +53,5 @@ class FirebaseConstants {
   static const String sourceField = 'source';
   static const String counterpartyIdField = 'counterpartyId';
   static const String counterpartyNameField = 'counterpartyName';
+  static const String updatedAtField = 'updatedAt';
 }
