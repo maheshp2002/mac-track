@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:mac_track/ui/theme.dart';
 
@@ -30,14 +28,13 @@ class FilterContainer extends StatelessWidget {
         highlightColor: splashColor.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(30.0),
         child: Container(
-          width: 120,
-          height: 110,
-          padding: const EdgeInsets.all(15), // <-- Back in business
+          height: 110, // restore original height
+          padding: const EdgeInsets.all(15),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment:
-                MainAxisAlignment.spaceBetween, // <-- for balance
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              // ICON (restore original sizing)
               Align(
                 alignment: Alignment.topLeft,
                 child: Container(
@@ -48,18 +45,26 @@ class FilterContainer extends StatelessWidget {
                       width: 2,
                     ),
                   ),
-                  child: Icon(
-                    icon,
-                    color: AppColors.backgroundLight,
-                    size: 20,
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Icon(
+                      icon,
+                      color: AppColors.backgroundLight,
+                      size: 15, // original visual weight
+                    ),
                   ),
                 ),
               ),
+
+              // TEXT
               Text(
                 text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: AppColors.backgroundLight,
-                  fontSize: 16,
+                  fontSize: 15, // slightly reduced (not too much)
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],

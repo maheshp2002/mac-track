@@ -696,8 +696,23 @@ class HomePageState extends State<HomePage> {
                 width: double.infinity,
                 height: 160,
                 decoration: BoxDecoration(
-                  color: Colors.amber,
                   borderRadius: BorderRadius.circular(16.0),
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFFFFB74D), // soft orange
+                      Color(0xFFFF9800), // mid
+                      Color(0xFFF57C00), // deep
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orange.withValues(alpha: 0.2),
+                      blurRadius: 18,
+                      offset: const Offset(0, 10),
+                    )
+                  ],
                 ),
                 padding: const EdgeInsets.all(16),
                 child: isBack
@@ -713,6 +728,20 @@ class HomePageState extends State<HomePage> {
         ),
       ),
     );
+  }
+
+  String formatCompactIndian(double amount) {
+    final absAmount = amount.abs();
+
+    if (absAmount >= 10000000) {
+      return '${(amount / 10000000).toStringAsFixed(1)}Cr';
+    } else if (absAmount >= 100000) {
+      return '${(amount / 100000).toStringAsFixed(1)}L';
+    } else if (absAmount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(1)}k';
+    } else {
+      return amount.toStringAsFixed(0);
+    }
   }
 
   String formatTimestamp(Timestamp timestamp) {
@@ -1180,8 +1209,11 @@ class HomePageState extends State<HomePage> {
                                                     color: AppColors.danger)
                                       ],
                                     ),
-                                    suffix:
-                                        '₹${expense[FirebaseConstants.amountField]}',
+                                    suffix: '₹${formatCompactIndian(
+                                      (expense[FirebaseConstants.amountField] ??
+                                              0)
+                                          .toDouble(),
+                                    )}',
                                     footer: Text(
                                       formatTimestamp(expense[
                                           FirebaseConstants.timestampField]),
