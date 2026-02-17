@@ -1,0 +1,159 @@
+{
+  "Food": [
+    "swiggy",
+    "zomato",
+    "ubereats",
+    "dominos",
+    "pappa johns",
+    "kfc",
+    "mcdonalds",
+    "burger king",
+    "pizza hut",
+    "foodpanda",
+    "canteen",
+    "restaurant",
+    "cafe",
+    "chai point",
+    "starbucks",
+    "tea stall"
+  ],
+  "Travel": [
+    "uber",
+    "ola",
+    "rapido",
+    "redbus",
+    "irctc",
+    "makemytrip",
+    "goibibo",
+    "indigo",
+    "airasia",
+    "spicejet",
+    "train ticket",
+    "bus ticket",
+    "flight ticket"
+  ],
+  "Shopping": [
+    "amazon",
+    "flipkart",
+    "myntra",
+    "ajio",
+    "meesho",
+    "lulu hypermarket",
+    "bigbasket",
+    "d mart",
+    "dmart",
+    "reliancedigital",
+    "croma",
+    "electronics store"
+  ],
+  "Entertainment": [
+    "netflix",
+    "spotify",
+    "prime video",
+    "youtube premium",
+    "hotstar",
+    "zee5",
+    "sony liv",
+    "bookmyshow",
+    "movie ticket",
+    "cinema"
+  ],
+  "Utilities": [
+    "electricity bill",
+    "kerala state electricity",
+    "kerala electricity",
+    "kseb",
+    "water bill",
+    "kochi water",
+    "water authority",
+    "broadband",
+    "internet bill",
+    "mobile bill",
+    "postpaid",
+    "prepaid recharge",
+    "recharge",
+    "gas bill"
+  ],
+  "Fuel": [
+    "petrol",
+    "diesel",
+    "hpcl",
+    "iocl",
+    "indianoil",
+    "bpc petrol",
+    "fuel station",
+    "fuel pump"
+  ],
+  "Healthcare": [
+    "apollo clinic",
+    "medical store",
+    "pharmacy",
+    "clinic",
+    "hospital",
+    "dispensary",
+    "laboratory",
+    "diagnostic",
+    "pathology"
+  ],
+  "Education": [
+    "school",
+    "college",
+    "tuition",
+    "course fee",
+    "exam fee",
+    "university",
+    "library fee"
+  ],
+  "Grocery": [
+    "bigbasket",
+    "grocery store",
+    "vegetable market",
+    "fruit market",
+    "supermarket",
+    "food market"
+  ],
+  "Health & Fitness": [
+    "gym",
+    "fitness",
+    "yoga",
+    "sports club"
+  ],
+  "Rent": [
+    "house rent",
+    "rental payment",
+    "flat rent",
+    "apartment rent"
+  ],
+  "Salary": [
+    "salary credit",
+    "payroll",
+    "salary payment",
+    "ctc credit",
+    "salary"
+  ],
+  "Transfer": [
+    "neft",
+    "rtgs",
+    "imps",
+    "upi",
+    "transfer",
+    "fund transfer"
+  ],
+  "Insurance": [
+    "insurance premium",
+    "life insurance",
+    "health insurance",
+    "motor insurance"
+  ],
+  "Taxes": [
+    "income tax",
+    "gst payment",
+    "property tax",
+    "service tax"
+  ],
+  "Other": [
+    "misc",
+    "unknown",
+    "other"
+  ]
+}
