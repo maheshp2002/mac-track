@@ -264,7 +264,7 @@ class ExpenseDetailsDialogState extends State<ExpenseDetailsDialog> {
                   Column(children: [
                     block("Contact", contactName.isEmpty ? "-" : contactName),
                     Text(
-                      contactName.isEmpty ? "-" : "• $contactPhone",
+                      contactName.isEmpty ? "" : "• $contactPhone",
                       style: theme.textTheme.bodyMedium
                           ?.copyWith(color: AppColors.white70),
                     ),
