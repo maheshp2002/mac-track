@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:csv/csv.dart';
 import 'package:mac_track/config/constants.dart';
-import 'package:mac_track/utils/csv_importer.dart';
+import 'package:mac_track/utils/transaction_semantic_classifier.dart';
 
 class CsvTransactionImporter {    
   Future<List<Map<String, dynamic>>> importCsv({
@@ -76,7 +76,7 @@ class CsvTransactionImporter {
 
       if (amount <= 0 || amount.isNaN || amount.isInfinite) continue;
 
-      final semantic = CsvSemanticDictionary.infer(rawDescription);
+      final semantic = TransactionSemanticClassifier.infer(rawDescription);
 
       final categoryId = expenseCategoryMap[semantic.inferredCategoryName] ??
           expenseCategoryMap[AppConstants.otherCategory];

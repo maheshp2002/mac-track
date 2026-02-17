@@ -15,12 +15,12 @@ class CsvSemanticResult {
 }
 
 class TransactionSemanticClassifier {
-  static Map<String, List<String>> _dictionary = {};
+  static final Map<String, List<String>> _dictionary = {};
 
   /// Load JSON dictionary from assets (only once).
   static Future<void> loadDictionary() async {
     final jsonStr = await rootBundle
-        .loadString('assets/transaction_dictionary.json');
+        .loadString('assets/json/transaction_dictionary.json');
     final data = json.decode(jsonStr) as Map<String, dynamic>;
 
     _dictionary.clear();

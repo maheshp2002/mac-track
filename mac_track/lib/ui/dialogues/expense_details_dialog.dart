@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:mac_track/config/constants.dart';
 import 'package:mac_track/services/firebase_service.dart';
 import 'package:mac_track/ui/components/full_screen_modal.dart';
 import 'package:mac_track/ui/theme.dart';
 import 'package:mac_track/ui/widgets/common_dialog.dart';
+import 'package:share_plus/share_plus.dart';
 
 class ExpenseDetailsDialog extends StatefulWidget {
   final String email;
@@ -81,6 +83,40 @@ class ExpenseDetailsDialogState extends State<ExpenseDetailsDialog> {
       widget.selectedExpenseId,
       _expenseData,
     );
+  }
+
+  Future<void> _shareReminder() async {
+    if (_expenseData == null) return;
+
+    final transactionType =
+        _expenseData![FirebaseConstants.transactionTypeField];
+
+    // Only for withdraw (debit)
+    if (transactionType != AppConstants.transactionTypeWithdraw) {
+      return;
+    }
+
+    final amount =
+        (_expenseData![FirebaseConstants.amountField] ?? 0).toDouble();
+
+    final expenseName = _expenseData![FirebaseConstants.expenseField] ?? '';
+
+    final Timestamp ts = _expenseData![FirebaseConstants.timestampField];
+
+    final date = DateFormat('dd MMM yyyy').format(ts.toDate());
+
+    final message = '''
+  Reminder:
+
+  Please send ₹${NumberFormat('#,##0.00').format(amount)} 
+  for "$expenseName"
+
+  Due date: $date
+
+  Sent via MacTrack
+  ''';
+
+    await Share.share(message);
   }
 
   // ================= FRONT CARD =================
@@ -214,12 +250,33 @@ class ExpenseDetailsDialogState extends State<ExpenseDetailsDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 12),
         block("Category", category),
         const SizedBox(height: 20),
-        block("Contact",
-            contactName.isEmpty ? "-" : "$contactName • $contactPhone"),
+        GestureDetector(
+            onTap: _expenseData?[FirebaseConstants.transactionTypeField] ==
+                    AppConstants.transactionTypeWithdraw
+                ? _shareReminder
+                : null,
+            child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Column(children: [
+                    block("Contact", contactName.isEmpty ? "-" : contactName),
+                    Text(
+                      contactName.isEmpty ? "-" : "• $contactPhone",
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: AppColors.white70),
+                    ),
+                  ]),
+                  const Icon(
+                    FeatherIcons.arrowUpRight,
+                    color: AppColors.primaryGreen,
+                    size: 20,
+                  ),
+                ])),
         const Spacer(),
+        const SizedBox(height: 8),
         block("Last Updated", updatedDate),
         const SizedBox(height: 8),
         Align(

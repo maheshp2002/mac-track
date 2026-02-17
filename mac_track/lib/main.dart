@@ -2,6 +2,7 @@ import 'package:bot_toast/bot_toast.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:mac_track/services/flutter_local_notification_plugin.dart';
+import 'package:mac_track/utils/transaction_semantic_classifier.dart';
 import 'package:provider/provider.dart';
 import 'ui/components/theme_manager.dart';
 import 'services/default_firebase_option.dart';
@@ -15,6 +16,7 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await initializeNotifications();
+  await TransactionSemanticClassifier.loadDictionary();
 
   runApp(
     ChangeNotifierProvider(

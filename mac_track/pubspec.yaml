@@ -70,6 +70,8 @@ dependencies:
   rxdart: ^0.28.0
   flutter_contacts: ^1.1.9+2
   permission_handler: ^12.0.1
+  excel: ^4.0.6
+  share_plus: ^12.0.1
 
 dev_dependencies:
   flutter_test:
@@ -102,6 +104,7 @@ flutter:
     - assets/Backgrounds/
     - assets/RiveAssets/
     - assets/images/expenses/
+    - assets/json/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

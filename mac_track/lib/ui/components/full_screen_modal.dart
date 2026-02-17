@@ -984,6 +984,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                                                           _pickedFile!.name,
                                                           overflow: TextOverflow
                                                               .ellipsis,
+                                                          style: theme.textTheme.bodyLarge,
                                                         ),
                                                       ),
                                                     ],

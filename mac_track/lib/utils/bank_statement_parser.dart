@@ -27,31 +27,38 @@ class BankStatementParser {
     final extension = file.path.split('.').last.toLowerCase();
 
     if (extension == "csv") {
-      return _parseCsv(await file.readAsString());
+      final content = await file.readAsString();
+      return _parseCsv(content);
     } else if (extension == "xlsx") {
-      return _parseExcel(await file.readAsBytes());
+      final bytes = await file.readAsBytes();
+      return _parseExcel(bytes);
     } else {
       throw UnsupportedError("Unsupported file type");
     }
   }
 
   Future<List<BankTransaction>> _parseCsv(String content) async {
-    final rows = const CsvToListConverter(
-      shouldParseNumbers: false,
-    ).convert(content);
-
+    final rows = CsvCodec().decoder.convert(content);
     return _processRows(rows);
   }
 
+
   Future<List<BankTransaction>> _parseExcel(List<int> bytes) async {
     final excel = Excel.decodeBytes(bytes);
+
+    if (excel.tables.isEmpty) return [];
+
     final sheet = excel.tables.values.first;
-    final rows = sheet.rows.map((r) => r.map((c) => c?.value).toList()).toList();
+
+    final rows = sheet.rows
+        .map((row) => row.map((cell) => cell?.value).toList())
+        .toList();
+
     return _processRows(rows);
   }
 
   List<BankTransaction> _processRows(List<List<dynamic>> rows) {
-    if (rows.isEmpty) return [];
+    if (rows.length < 2) return [];
 
     final headerRow = rows.first;
     final fieldMap = <int, String>{};
@@ -68,6 +75,7 @@ class BankStatementParser {
 
     for (int r = 1; r < rows.length; r++) {
       final row = rows[r];
+      if (row.isEmpty) continue;
 
       try {
         DateTime date = DateTime.now();
@@ -82,6 +90,8 @@ class BankStatementParser {
 
           final field = fieldMap[i];
           final value = row[i]?.toString().trim() ?? "";
+
+          if (value.isEmpty) continue;
 
           switch (field) {
             case "date":
@@ -113,6 +123,10 @@ class BankStatementParser {
           }
         }
 
+        // Skip useless rows
+        if (description.isEmpty) continue;
+        if (debit <= 0 && credit <= 0) continue;
+
         transactions.add(
           BankTransaction(
             date: date,
@@ -124,7 +138,7 @@ class BankStatementParser {
           ),
         );
       } catch (_) {
-        continue;
+        continue; // Never crash on bad row
       }
     }
 
@@ -173,7 +187,7 @@ class BankStatementParser {
     try {
       return DateTime.parse(value);
     } catch (_) {
-      return DateTime.now();
+      return DateTime.now(); // safe fallback
     }
   }
 }
