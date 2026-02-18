@@ -898,7 +898,11 @@ class HomePageState extends State<HomePage> {
         isSelectionMode: _isSelectionMode,
         selectedCount: _selectedExpenseIds.length,
         totalFilteredCount: _currentFilteredCount,
-      
+        onSearchPressed: () {
+          setState(() {
+            _isSearchMode = !_isSearchMode;
+          });
+        },
         onExitSelection: _exitSelectionMode,
       
         onToggleSelectAll: () {
@@ -1098,6 +1102,28 @@ class HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 10),
 
+
+                  // Search UI
+                  if (_isSearchMode)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Search expense...',
+                          prefixIcon: const Icon(Icons.search),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value.toLowerCase();
+                          });
+                        },
+                      ),
+                    ),
+
+                  // FIlter Container
                   SlideInAnimation(
                     delay: const Duration(milliseconds: 100),
                     startPosition: -0.5,
