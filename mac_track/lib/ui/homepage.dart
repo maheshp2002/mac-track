@@ -888,8 +888,34 @@ class HomePageState extends State<HomePage> {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: const CommonAppBar(
+      appBar: appBar: CommonAppBar(
         title: 'MacTrack',
+        isSelectionMode: _isSelectionMode,
+        selectedCount: _selectedExpenseIds.length,
+        totalFilteredCount: _currentFilteredCount,
+      
+        onExitSelection: _exitSelectionMode,
+      
+        onToggleSelectAll: () {
+          setState(() {
+            if (_selectedExpenseIds.length == _currentFilteredCount) {
+              _selectedExpenseIds.clear();
+            } else {
+              _selectedExpenseIds = _currentFilteredIds.toSet();
+            }
+          });
+        },
+      
+        onDeleteSelected: () {
+          showAlertDialog(
+            context,
+            Theme.of(context),
+            'Delete Expenses',
+            'Delete selected expenses?',
+            'Delete',
+            _deleteSelectedExpenses,
+          );
+        },
       ),
       floatingActionButton: _isSelectionMode
       ? null
