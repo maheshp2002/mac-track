@@ -48,6 +48,11 @@ class HomePageState extends State<HomePage> {
   Set<String> _selectedExpenseIds = {};
   final firebaseService = FirebaseService();
   StreamSubscription<Map<String, dynamic>>? _userBankSubscription;
+  int _bottomIndex = 0;
+  bool _isSearchMode = false;
+  String _searchQuery = '';
+  String? _selectedCategory;
+  DateTimeRange? _selectedDateRange;
 
   @override
   void initState() {
@@ -932,7 +937,23 @@ class HomePageState extends State<HomePage> {
           color: AppColors.backgroundLight,
         ),
       ),
-      drawer: const NavBar(),
+      bottomNavigationBar: FloatingBottomNav(
+        currentIndex: _bottomIndex,
+        onTap: (index) {
+          if (index == _bottomIndex) return;
+      
+          if (index == 1) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const Insight()),
+            );
+          }
+      
+          setState(() {
+            _bottomIndex = index;
+          });
+        },
+      ),
       body: Container(
           decoration: AppTheme.getBackgroundDecoration(themeMode),
           padding: const EdgeInsets.only(top: kToolbarHeight + 50),
@@ -1243,7 +1264,7 @@ class HomePageState extends State<HomePage> {
                         final expenseTypes = typeSnapshot.data!;
 
                         return ListView(
-                          padding: EdgeInsets.zero,
+                          padding: const EdgeInsets.only(bottom: 120),
                           children: filteredExpenses.map((entry) {
                             final expense = entry.value;
                             final categoryId =
