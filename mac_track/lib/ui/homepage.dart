@@ -44,6 +44,8 @@ class HomePageState extends State<HomePage> {
   String userEmail = "";
   String currentBalance = "";
   String? _selectedFilterType;
+  bool _isSelectionMode = false;
+  Set<String> _selectedExpenseIds = {};
   final firebaseService = FirebaseService();
   StreamSubscription<Map<String, dynamic>>? _userBankSubscription;
 
@@ -526,6 +528,33 @@ class HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _deleteSelectedExpenses() async {
+    if (_selectedExpenseIds.isEmpty) return;
+  
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.email == null) {
+      showToast('User not signed in.');
+      return;
+    }
+  
+    final userEmail = user.email!;
+    final batch = FirebaseFirestore.instance.batch();
+  
+    for (final id in _selectedExpenseIds) {
+      final docRef = FirebaseFirestore.instance
+          .collection(FirebaseConstants.usersCollection)
+          .doc(userEmail)
+          .collection(FirebaseConstants.expenseCollection)
+          .doc(id);
+  
+      batch.delete(docRef);
+    }
+  
+    await batch.commit();
+  
+    _exitSelectionMode();
+  }
+
   showAlertDialog(BuildContext context, ThemeData theme, String title,
       String message, String buttonLabel, VoidCallback submit) {
     // set up the AlertDialog
@@ -752,6 +781,97 @@ class HomePageState extends State<HomePage> {
     return DateFormat('dd MMM yyyy').format(date);
   }
 
+  void _enterSelectionMode(String id) {
+    setState(() {
+      _isSelectionMode = true;
+      _selectedExpenseIds.add(id);
+    });
+  }
+  
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedExpenseIds.contains(id)) {
+        _selectedExpenseIds.remove(id);
+        if (_selectedExpenseIds.isEmpty) {
+          _isSelectionMode = false;
+        }
+      } else {
+        _selectedExpenseIds.add(id);
+      }
+    });
+  }
+  
+  void _exitSelectionMode() {
+    setState(() {
+      _isSelectionMode = false;
+      _selectedExpenseIds.clear();
+    });
+  }
+
+  Widget _buildNormalTile(
+    MapEntry<String, dynamic> entry,
+    Map<String, dynamic> expense,
+    String categoryImage) {
+    return GestureDetector(
+      onLongPress: () => _enterSelectionMode(entry.key),
+      onTap: () async {
+        await showDialog(
+          context: context,
+          builder: (BuildContext context) => ExpenseDetailsDialog(
+            email: userEmail,
+            selectedExpenseId: entry.key,
+          ),
+        );
+      },
+      child: ListCard(
+        image: categoryImage,
+        title: expense[FirebaseConstants.expenseField] ?? '',
+        subTitle: Text(
+          expense[FirebaseConstants.transactionTypeField] ?? '',
+        ),
+        suffix: '₹${formatCompactIndian(
+          (expense[FirebaseConstants.amountField] ?? 0).toDouble(),
+        )}',
+        footer: Text(
+          formatTimestamp(
+              expense[FirebaseConstants.timestampField]),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectableTile(
+    MapEntry<String, dynamic> entry,
+    Map<String, dynamic> expense,
+    String categoryImage) {
+    final isSelected = _selectedExpenseIds.contains(entry.key);
+  
+    return GestureDetector(
+      onTap: () => _toggleSelection(entry.key),
+      child: Container(
+        color: isSelected
+            ? AppColors.secondaryGreen.withValues(alpha: 0.1)
+            : Colors.transparent,
+        child: ListCard(
+          image: categoryImage,
+          title: expense[FirebaseConstants.expenseField] ?? '',
+          subTitle: Text(
+            expense[FirebaseConstants.transactionTypeField] ?? '',
+          ),
+          suffix: Checkbox(
+            value: isSelected,
+            activeColor: AppColors.secondaryGreen,
+            onChanged: (_) => _toggleSelection(entry.key),
+          ),
+          footer: Text(
+            formatTimestamp(
+                expense[FirebaseConstants.timestampField]),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _userBankSubscription?.cancel();
@@ -771,7 +891,9 @@ class HomePageState extends State<HomePage> {
       appBar: const CommonAppBar(
         title: 'MacTrack',
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: _isSelectionMode
+      ? null
+      : FloatingActionButton(
         onPressed: () async {
           await openFullScreenModal(context, null, null);
         },
@@ -1041,7 +1163,7 @@ class HomePageState extends State<HomePage> {
                     // FILTER LOGIC (THIS FIXES EVERYTHING)
                     final filteredExpenses = expenseData.entries.where((entry) {
                       final data = entry.value;
-
+                      
                       // 1. Bank filter
                       if (data[FirebaseConstants.bankIdField] !=
                           selectedBankId) {
@@ -1069,6 +1191,9 @@ class HomePageState extends State<HomePage> {
                       return true;
                     }).toList();
 
+                    List<String> _currentFilteredIds = [];
+                    int _currentFilteredCount = 0;
+
                     // 4. Sort newest first
                     filteredExpenses.sort((a, b) {
                       final tsA = a.value[FirebaseConstants.timestampField]
@@ -1077,6 +1202,10 @@ class HomePageState extends State<HomePage> {
                           as Timestamp;
                       return tsB.compareTo(tsA);
                     });
+
+                    _currentFilteredIds =
+                        filteredExpenses.map((e) => e.key).toList();
+                    _currentFilteredCount = _currentFilteredIds.length;
 
                     return StreamBuilder<Map<String, dynamic>>(
                       stream: expenseTypesStream,
@@ -1099,7 +1228,9 @@ class HomePageState extends State<HomePage> {
                                 categoryInfo?[FirebaseConstants.imageField] ??
                                     'assets/images/other-expenses.png';
 
-                            return Slidable(
+                            return _isSelectionMode
+                              ? _buildSelectableTile(entry, expense, categoryImage)
+                              : Slidable(
                               key: ValueKey(entry.key),
                               endActionPane: ActionPane(
                                 motion: const DrawerMotion(),
