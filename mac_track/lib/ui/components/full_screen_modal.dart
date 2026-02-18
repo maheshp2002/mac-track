@@ -934,7 +934,7 @@ class FullScreenModalState extends State<FullScreenModal> {
                                     final result =
                                         await FilePicker.platform.pickFiles(
                                       type: FileType.custom,
-                                      allowedExtensions: ['csv'],
+                                      allowedExtensions: ['csv', 'xls', 'xlsx'],
                                     );
 
                                     if (result != null) {
