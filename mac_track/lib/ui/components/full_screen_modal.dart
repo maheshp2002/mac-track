@@ -365,51 +365,73 @@ class FullScreenModalState extends State<FullScreenModal> {
   void _handleCsvImport() async {
     if (_isImporting) return;
     if (_pickedFile == null || _pickedFile!.path == null) {
-      showToast('Please select a CSV file.');
+      showToast('Please select a file.');
       return;
     }
-
+  
     setState(() => _isImporting = true);
-
+  
     try {
       final importer = CsvTransactionImporter();
-
+  
       final imported = await importer.importCsv(
-          filePath: _pickedFile!.path!,
-          selectedBankId: _selectedBankId!,
-          expenseCategoryMap: _expenseCategoryMap);
-
+        filePath: _pickedFile!.path!,
+        selectedBankId: _selectedBankId!,
+        expenseCategoryMap: _expenseCategoryMap,
+      );
+  
       if (imported.isEmpty) {
         showToast('No valid transactions found.');
         return;
       }
-
+  
       final confirmed = await _showImportConfirmation(imported.length);
-
       if (!confirmed) return;
-
+  
       final user = FirebaseAuth.instance.currentUser;
       if (user == null || user.email == null) return;
-
-      for (final expense in imported) {
-        await _firebaseService.addData(
-          user.email!,
-          expense[FirebaseConstants.documentIdField],
-          expense,
-          FirebaseConstants.expenseCollection,
-        );
+  
+      // CLOSE MODAL FIRST
+      if (mounted) {
+        Navigator.of(context).pop(AppConstants.refresh);
       }
-
-      showToast('${imported.length} transactions imported');
-
-      if (!mounted) return;
-      Navigator.of(context).pop(AppConstants.refresh);
+  
+      // Show start toast
+      showToast('Import in progress...');
+  
+      // Run upload in background
+      _uploadInBackground(user.email!, imported);
+  
     } catch (e) {
       showToast(e.toString());
     } finally {
       if (mounted) setState(() => _isImporting = false);
     }
   }
+
+  Future<void> _uploadInBackground(
+    String userEmail,
+    List<Map<String, dynamic>> imported,
+  ) async {
+    try {
+      // Faster: use Future.wait for parallel writes
+      await Future.wait(
+        imported.map((expense) {
+          return _firebaseService.addData(
+            userEmail,
+            expense[FirebaseConstants.documentIdField],
+            expense,
+            FirebaseConstants.expenseCollection,
+          );
+        }),
+      );
+  
+      showToast('${imported.length} transactions imported successfully');
+    } catch (e) {
+      showToast('Import failed. Please try again.');
+    }
+  }
+
 
   Future<bool> _showImportConfirmation(int count) async {
     final result = await showDialog<bool>(
