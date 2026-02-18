@@ -732,13 +732,16 @@ class HomePageState extends State<HomePage> {
 
   String formatCompactIndian(double amount) {
     final absAmount = amount.abs();
-
+  
     if (absAmount >= 10000000) {
-      return '${(amount / 10000000).toStringAsFixed(1)}Cr';
+      final value = (amount / 10000000);
+      return '${(value * 10).truncate() / 10}Cr';
     } else if (absAmount >= 100000) {
-      return '${(amount / 100000).toStringAsFixed(1)}L';
+      final value = (amount / 100000);
+      return '${(value * 10).truncate() / 10}L';
     } else if (absAmount >= 1000) {
-      return '${(amount / 1000).toStringAsFixed(1)}k';
+      final value = (amount / 1000);
+      return '${(value * 10).truncate() / 10}k';
     } else {
       return amount.toStringAsFixed(0);
     }
