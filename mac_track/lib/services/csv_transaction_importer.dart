@@ -2,8 +2,10 @@ import 'dart:io';
 import 'package:csv/csv.dart';
 import 'package:mac_track/config/constants.dart';
 import 'package:mac_track/utils/transaction_semantic_classifier.dart';
+import 'transaction_field_dictionary.dart';
 
-class CsvTransactionImporter {    
+class CsvTransactionImporter {
+
   Future<List<Map<String, dynamic>>> importCsv({
     required String filePath,
     required String selectedBankId,
@@ -12,43 +14,73 @@ class CsvTransactionImporter {
 
     final file = File(filePath);
     final content = await file.readAsString();
+    final rows = CsvCodec().decoder.convert(content);
 
-    final List<List<dynamic>> rows = CsvCodec().decoder.convert(content);
-
-    if (rows.length < 2) {
-      throw Exception('CSV has no transaction rows');
+    if (rows.isEmpty) {
+      throw Exception("CSV is empty");
     }
 
-    final headers = rows.first.map((e) => e.toString().toLowerCase()).toList();
+    // ---------------------------
+    // STEP 1: Detect Header Row
+    // ---------------------------
+    int? headerRowIndex;
+    Map<String, int> fieldIndexMap = {};
 
-    int? descIdx, debitIdx, creditIdx, amountIdx;
+    for (int r = 0; r < rows.length; r++) {
+      final row = rows[r];
+      final tempMap = <String, int>{};
 
-    for (int i = 0; i < headers.length; i++) {
-      final h = headers[i];
-      if (descIdx == null &&
-          (h.contains('description') ||
-              h.contains('narration') ||
-              h.contains('desc'))) {
-        descIdx = i;
+      for (int c = 0; c < row.length; c++) {
+        final cell = row[c].toString();
+        final detected = TransactionFieldDictionary.detectField(cell);
+        if (detected != null && !tempMap.containsKey(detected)) {
+          tempMap[detected] = c;
+        }
       }
-      if (debitIdx == null && h.contains('debit')) debitIdx = i;
-      if (creditIdx == null && h.contains('credit')) creditIdx = i;
-      if (amountIdx == null && h.contains('amount')) amountIdx = i;
+
+      if (tempMap.length >= 2 && tempMap.containsKey("description")) {
+        headerRowIndex = r;
+        fieldIndexMap = tempMap;
+        break;
+      }
     }
 
-    if (descIdx == null) {
-      throw Exception('Unable to identify description column');
+    if (headerRowIndex == null) {
+      throw Exception("Unable to detect header row.");
     }
 
-    final List<Map<String, dynamic>> parsedExpenses = [];
+    if (!fieldIndexMap.containsKey("description")) {
+      throw Exception("Description column not found.");
+    }
 
-    for (int i = 1; i < rows.length; i++) {
+    // ---------------------------
+    // STEP 2: Validate Structure
+    // ---------------------------
+    final hasDebitCredit =
+        fieldIndexMap.containsKey("debit") &&
+        fieldIndexMap.containsKey("credit");
+
+    final hasAmountOnly = fieldIndexMap.containsKey("amount");
+    final hasTypeColumn = fieldIndexMap.containsKey("type");
+
+    if (!hasDebitCredit && !hasAmountOnly) {
+      throw Exception("Unsupported format: No debit/credit or amount column.");
+    }
+
+    final parsedExpenses = <Map<String, dynamic>>[];
+
+    // ---------------------------
+    // STEP 3: Parse Transactions
+    // ---------------------------
+    for (int i = headerRowIndex + 1; i < rows.length; i++) {
       final row = rows[i];
+      if (row.isEmpty) continue;
 
-      if (row.isEmpty || descIdx >= row.length) continue;
+      final descIdx = fieldIndexMap["description"]!;
+      if (descIdx >= row.length) continue;
 
       final rawDescription = row[descIdx].toString().trim();
-      if (rawDescription.isEmpty || rawDescription.length < 2) continue;
+      if (rawDescription.isEmpty) continue;
 
       double amount = 0;
       String transactionType = AppConstants.transactionTypeWithdraw;
@@ -57,18 +89,52 @@ class CsvTransactionImporter {
           value.replaceAll(',', '').replaceAll('₹', '').trim();
 
       try {
-        if (debitIdx != null &&
-            debitIdx < row.length &&
-            row[debitIdx].toString().trim().isNotEmpty) {
-          amount = double.tryParse(sanitize(row[debitIdx].toString())) ?? 0;
-          transactionType = AppConstants.transactionTypeWithdraw;
-        } else if (creditIdx != null &&
-            creditIdx < row.length &&
-            row[creditIdx].toString().trim().isNotEmpty) {
-          amount = double.tryParse(sanitize(row[creditIdx].toString())) ?? 0;
-          transactionType = AppConstants.transactionTypeDeposit;
-        } else if (amountIdx != null && amountIdx < row.length) {
-          amount = double.tryParse(sanitize(row[amountIdx].toString())) ?? 0;
+        if (hasDebitCredit) {
+          final debitIdx = fieldIndexMap["debit"]!;
+          final creditIdx = fieldIndexMap["credit"]!;
+
+          final debitVal = debitIdx < row.length
+              ? sanitize(row[debitIdx].toString())
+              : "";
+
+          final creditVal = creditIdx < row.length
+              ? sanitize(row[creditIdx].toString())
+              : "";
+
+          if (debitVal.isNotEmpty) {
+            amount = double.tryParse(debitVal) ?? 0;
+            transactionType = AppConstants.transactionTypeWithdraw;
+          } else if (creditVal.isNotEmpty) {
+            amount = double.tryParse(creditVal) ?? 0;
+            transactionType = AppConstants.transactionTypeDeposit;
+          }
+
+        } else if (hasAmountOnly) {
+          final amountIdx = fieldIndexMap["amount"]!;
+          if (amountIdx >= row.length) continue;
+
+          final rawAmount = sanitize(row[amountIdx].toString());
+          amount = double.tryParse(rawAmount) ?? 0;
+
+          if (hasTypeColumn) {
+            final typeIdx = fieldIndexMap["type"]!;
+            if (typeIdx < row.length) {
+              final typeVal =
+                  row[typeIdx].toString().toLowerCase().trim();
+              if (typeVal.contains("cr")) {
+                transactionType = AppConstants.transactionTypeDeposit;
+              } else {
+                transactionType = AppConstants.transactionTypeWithdraw;
+              }
+            }
+          } else {
+            if (rawAmount.startsWith("-")) {
+              transactionType = AppConstants.transactionTypeWithdraw;
+              amount = amount.abs();
+            } else {
+              transactionType = AppConstants.transactionTypeDeposit;
+            }
+          }
         }
       } catch (_) {
         continue;
@@ -76,15 +142,18 @@ class CsvTransactionImporter {
 
       if (amount <= 0 || amount.isNaN || amount.isInfinite) continue;
 
-      final semantic = TransactionSemanticClassifier.infer(rawDescription);
+      final semantic =
+          TransactionSemanticClassifier.infer(rawDescription);
 
-      final categoryId = expenseCategoryMap[semantic.inferredCategoryName] ??
+      final categoryId =
+          expenseCategoryMap[semantic.inferredCategoryName] ??
           expenseCategoryMap[AppConstants.otherCategory];
 
       if (categoryId == null) continue;
 
       final now = DateTime.now();
-      final documentId = "${now.microsecondsSinceEpoch}_$amount";
+      final documentId =
+          "${now.microsecondsSinceEpoch}_$amount";
 
       parsedExpenses.add({
         FirebaseConstants.documentIdField: documentId,
@@ -95,7 +164,8 @@ class CsvTransactionImporter {
         FirebaseConstants.transactionTypeField: transactionType,
         FirebaseConstants.timestampField: now,
         FirebaseConstants.isReminderCompletedField: false,
-        FirebaseConstants.reminderRepetitionField: AppConstants.reminderOnce,
+        FirebaseConstants.reminderRepetitionField:
+            AppConstants.reminderOnce,
         FirebaseConstants.reminderTimeField: null,
       });
     }
