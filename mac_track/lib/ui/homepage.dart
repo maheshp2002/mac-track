@@ -53,6 +53,8 @@ class HomePageState extends State<HomePage> {
   String _searchQuery = '';
   String? _selectedCategory;
   DateTimeRange? _selectedDateRange;
+  DateTimeRange? _selectedDateRange;
+  String? _selectedCategory;
 
   @override
   void initState() {
@@ -877,6 +879,52 @@ class HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildAdvancedFilterSheet() {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            "Advanced Filters",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 20),
+  
+          ElevatedButton(
+            onPressed: () async {
+              final range = await showDateRangePicker(
+                context: context,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now(),
+              );
+  
+              if (range != null) {
+                setState(() {
+                  _selectedDateRange = range;
+                });
+              }
+            },
+            child: const Text("Select Date Range"),
+          ),
+  
+          const SizedBox(height: 12),
+  
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _selectedCategory = null;
+                _selectedDateRange = null;
+              });
+              Navigator.pop(context);
+            },
+            child: const Text("Clear Filters"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _userBankSubscription?.cancel();
@@ -903,6 +951,18 @@ class HomePageState extends State<HomePage> {
             _isSearchMode = !_isSearchMode;
           });
         },
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.tune),
+            onPressed: () async {
+              await showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                builder: (_) => _buildAdvancedFilterSheet(),
+              );
+            },
+          ),
+        ],
         onExitSelection: _exitSelectionMode,
       
         onToggleSelectAll: () {
@@ -1260,6 +1320,31 @@ class HomePageState extends State<HomePage> {
                               _selectedFilterType) {
                         return false;
                       }
+
+                      // 4. Search filter
+                      if (_searchQuery.isNotEmpty &&
+                          !(data[FirebaseConstants.expenseField]
+                              .toString()
+                              .toLowerCase()
+                              .contains(_searchQuery))) {
+                        return false;
+                      }
+                      
+                      // 5. Category filter
+                      if (_selectedCategory != null &&
+                          data[FirebaseConstants.expenseCategoryField] != _selectedCategory) {
+                        return false;
+                      }
+                      
+                      // 6. Date range filter
+                      if (_selectedDateRange != null) {
+                        final ts = data[FirebaseConstants.timestampField] as Timestamp;
+                        final date = ts.toDate();
+                      
+                        if (date.isBefore(_selectedDateRange!.start) ||
+                            date.isAfter(_selectedDateRange!.end)) {
+                          return false;
+                        }
 
                       return true;
                     }).toList();
