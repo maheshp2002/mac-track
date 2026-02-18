@@ -97,25 +97,50 @@ class TransactionFieldDictionary {
       "chq no",
       "cheque number"
     ],
+    "type": [
+      "type",
+      "transaction type",
+      "dr/cr",
+      "cr/dr",
+      "indicator"
+    ]
   };
 
   static String normalize(String input) {
     return input
         .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9 ]'), '')
+        .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }
 
   static String? detectField(String header) {
     final normalized = normalize(header);
 
+    String? bestMatch;
+    int bestScore = 0;
+
     for (final entry in fieldAliases.entries) {
       for (final alias in entry.value) {
-        if (normalized == normalize(alias)) {
-          return entry.key;
+        final normAlias = normalize(alias);
+
+        int score = 0;
+
+        if (normalized == normAlias) {
+          score = 3;
+        } else if (normalized.startsWith(normAlias)) {
+          score = 2;
+        } else if (normalized.contains(normAlias)) {
+          score = 1;
+        }
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = entry.key;
         }
       }
     }
-    return null;
+
+    return bestScore > 0 ? bestMatch : null;
   }
 }
