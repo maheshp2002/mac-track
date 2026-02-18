@@ -13,6 +13,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onExitSelection;
   final VoidCallback? onToggleSelectAll;
   final VoidCallback? onDeleteSelected;
+  final VoidCallback? onSearchPressed;
 
   const CommonAppBar({
     super.key,
@@ -49,6 +50,12 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
           : null,
 
       actions: [
+        // Un-Selection actions
+        if (!isSelectionMode && onSearchPressed != null)
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: onSearchPressed,
+          ),
         // Selection actions
         if (isSelectionMode) ...[
           TextButton(
