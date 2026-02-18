@@ -5,7 +5,7 @@ import 'package:mac_track/ui/components/curved_toggle_button.dart';
 import 'package:provider/provider.dart';
 import 'components/common_app_bar.dart';
 import 'components/graph.dart';
-import 'components/navbar.dart';
+import 'components/floating_bottom_nav.dart';
 import 'components/theme_manager.dart';
 import 'theme.dart';
 import '../../config/constants.dart';
@@ -277,7 +277,7 @@ class InsightState extends State<Insight> {
       appBar: const CommonAppBar(
         title: 'Insight',
       ),
-      drawer: const NavBar(),
+      drawer: const FloatingBottomNav(),
       body: Container(
           decoration: AppTheme.getBackgroundDecoration(themeMode),
           padding: const EdgeInsets.only(top: kToolbarHeight + 50),
