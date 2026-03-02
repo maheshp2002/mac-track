@@ -18,7 +18,6 @@ import 'package:toggle_switch/toggle_switch.dart';
 import 'components/common_app_bar.dart';
 import 'components/full_screen_modal.dart';
 import 'components/list_card.dart';
-import 'components/navbar.dart';
 import 'components/slide_in_animation.dart';
 import 'components/theme_manager.dart';
 import 'components/toast.dart';
@@ -48,13 +47,12 @@ class HomePageState extends State<HomePage> {
   Set<String> _selectedExpenseIds = {};
   final firebaseService = FirebaseService();
   StreamSubscription<Map<String, dynamic>>? _userBankSubscription;
-  int _bottomIndex = 0;
-  bool _isSearchMode = false;
-  String _searchQuery = '';
-  String? _selectedCategory;
+  final bool _isSearchMode = false;
+  final String _searchQuery = '';
+ final Set<String> _selectedCategories = {};
   DateTimeRange? _selectedDateRange;
-  DateTimeRange? _selectedDateRange;
-  String? _selectedCategory;
+  List<String> _currentFilteredIds = [];
+  int _currentFilteredCount = 0;
 
   @override
   void initState() {
@@ -217,7 +215,7 @@ class HomePageState extends State<HomePage> {
                                 onPressed: (_) async {
                                   final int totalBanks = filteredBanks.length;
 
-                                  /// ❌ Primary bank delete not allowed
+                                  /// Primary bank delete not allowed
                                   if (isPrimary && totalBanks > 1) {
                                     showDialog(
                                       context: context,
@@ -537,30 +535,39 @@ class HomePageState extends State<HomePage> {
 
   Future<void> _deleteSelectedExpenses() async {
     if (_selectedExpenseIds.isEmpty) return;
-  
+
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null || user.email == null) {
       showToast('User not signed in.');
       return;
     }
-  
+
     final userEmail = user.email!;
     final batch = FirebaseFirestore.instance.batch();
-  
+
     for (final id in _selectedExpenseIds) {
       final docRef = FirebaseFirestore.instance
           .collection(FirebaseConstants.usersCollection)
           .doc(userEmail)
           .collection(FirebaseConstants.expenseCollection)
           .doc(id);
-  
+
       batch.delete(docRef);
     }
-  
+
     await batch.commit();
-  
+
     _exitSelectionMode();
   }
+  
+  // List<DropdownMenuItem<String>> _buildCategoryDropdownItems() {
+  //   return _expenseTypesCache.entries.map((entry) {
+  //     return DropdownMenuItem<String>(
+  //       value: entry.key,
+  //       child: Text(entry.value[FirebaseConstants.nameField]),
+  //     );
+  //   }).toList();
+  // }
 
   showAlertDialog(BuildContext context, ThemeData theme, String title,
       String message, String buttonLabel, VoidCallback submit) {
@@ -768,7 +775,7 @@ class HomePageState extends State<HomePage> {
 
   String formatCompactIndian(double amount) {
     final absAmount = amount.abs();
-  
+
     if (absAmount >= 10000000) {
       final value = (amount / 10000000);
       return '${(value * 10).truncate() / 10}Cr';
@@ -788,13 +795,6 @@ class HomePageState extends State<HomePage> {
     return DateFormat('dd MMM yyyy').format(date);
   }
 
-  void _enterSelectionMode(String id) {
-    setState(() {
-      _isSelectionMode = true;
-      _selectedExpenseIds.add(id);
-    });
-  }
-  
   void _toggleSelection(String id) {
     setState(() {
       if (_selectedExpenseIds.contains(id)) {
@@ -807,7 +807,7 @@ class HomePageState extends State<HomePage> {
       }
     });
   }
-  
+
   void _exitSelectionMode() {
     setState(() {
       _isSelectionMode = false;
@@ -815,115 +815,171 @@ class HomePageState extends State<HomePage> {
     });
   }
 
-  Widget _buildNormalTile(
-    MapEntry<String, dynamic> entry,
-    Map<String, dynamic> expense,
-    String categoryImage) {
-    return GestureDetector(
-      onLongPress: () => _enterSelectionMode(entry.key),
-      onTap: () async {
-        await showDialog(
-          context: context,
-          builder: (BuildContext context) => ExpenseDetailsDialog(
-            email: userEmail,
-            selectedExpenseId: entry.key,
-          ),
-        );
-      },
-      child: ListCard(
-        image: categoryImage,
-        title: expense[FirebaseConstants.expenseField] ?? '',
-        subTitle: Text(
-          expense[FirebaseConstants.transactionTypeField] ?? '',
-        ),
-        suffix: '₹${formatCompactIndian(
-          (expense[FirebaseConstants.amountField] ?? 0).toDouble(),
-        )}',
-        footer: Text(
-          formatTimestamp(
-              expense[FirebaseConstants.timestampField]),
-        ),
-      ),
-    );
-  }
+  // Widget _buildSelectableTile(MapEntry<String, dynamic> entry,
+  //     Map<String, dynamic> expense, String categoryImage) {
+  //   final isSelected = _selectedExpenseIds.contains(entry.key);
 
-  Widget _buildSelectableTile(
-    MapEntry<String, dynamic> entry,
-    Map<String, dynamic> expense,
-    String categoryImage) {
-    final isSelected = _selectedExpenseIds.contains(entry.key);
-  
-    return GestureDetector(
-      onTap: () => _toggleSelection(entry.key),
-      child: Container(
-        color: isSelected
-            ? AppColors.secondaryGreen.withValues(alpha: 0.1)
-            : Colors.transparent,
-        child: ListCard(
-          image: categoryImage,
-          title: expense[FirebaseConstants.expenseField] ?? '',
-          subTitle: Text(
-            expense[FirebaseConstants.transactionTypeField] ?? '',
-          ),
-          suffix: Checkbox(
-            value: isSelected,
-            activeColor: AppColors.secondaryGreen,
-            onChanged: (_) => _toggleSelection(entry.key),
-          ),
-          footer: Text(
-            formatTimestamp(
-                expense[FirebaseConstants.timestampField]),
-          ),
-        ),
-      ),
-    );
-  }
+  //   return GestureDetector(
+  //     onTap: () => _toggleSelection(entry.key),
+  //     child: Container(
+  //       color: isSelected
+  //           ? AppColors.secondaryGreen.withValues(alpha: 0.1)
+  //           : Colors.transparent,
+  //       child: ListCard(
+  //         image: categoryImage,
+  //         title: expense[FirebaseConstants.expenseField] ?? '',
+  //         subTitle: Text(
+  //           expense[FirebaseConstants.transactionTypeField] ?? '',
+  //         ),
+  //         suffix: Checkbox(
+  //           value: isSelected,
+  //           activeColor: AppColors.secondaryGreen,
+  //           onChanged: (_) => _toggleSelection(entry.key),
+  //         ),
+  //         footer: Text(
+  //           formatTimestamp(expense[FirebaseConstants.timestampField]),
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
 
-  Widget _buildAdvancedFilterSheet() {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            "Advanced Filters",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-  
-          ElevatedButton(
-            onPressed: () async {
-              final range = await showDateRangePicker(
-                context: context,
-                firstDate: DateTime(2020),
-                lastDate: DateTime.now(),
-              );
-  
-              if (range != null) {
-                setState(() {
-                  _selectedDateRange = range;
-                });
-              }
-            },
-            child: const Text("Select Date Range"),
-          ),
-  
-          const SizedBox(height: 12),
-  
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _selectedCategory = null;
-                _selectedDateRange = null;
-              });
-              Navigator.pop(context);
-            },
-            child: const Text("Clear Filters"),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildAdvancedFilterSheet() {
+  //   return Padding(
+  //     padding: const EdgeInsets.all(20),
+  //     child: Column(
+  //       mainAxisSize: MainAxisSize.min,
+  //       children: [
+  //         const Text(
+  //           "Advanced Filters",
+  //           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+  //         ),
+  //         const SizedBox(height: 20),
+  //         ElevatedButton(
+  //           onPressed: () async {
+  //             final range = await showDateRangePicker(
+  //               context: context,
+  //               firstDate: DateTime(2020),
+  //               lastDate: DateTime.now(),
+  //               builder: (context, child) {
+  //                 return Theme(
+  //                   data: Theme.of(context).copyWith(
+  //                     colorScheme: Theme.of(context).colorScheme.copyWith(
+  //                           primary: AppColors.secondaryGreen,
+  //                           surface: Theme.of(context).scaffoldBackgroundColor,
+  //                           onSurface: Theme.of(context).textTheme.bodyLarge!.color,
+  //                         ),
+  //                   ),
+  //                   child: child!,
+  //                 );
+  //               },
+  //             );
+
+  //             if (range != null) {
+  //               setState(() {
+  //                 _selectedDateRange = range;
+  //               });
+  //             }
+  //           },
+  //           child: const Text("Select Date Range"),
+  //         ),
+  //         const SizedBox(height: 12),
+  //         ElevatedButton(
+  //           onPressed: () {
+  //             setState(() {
+  //               _selectedCategory = null;
+  //               _selectedDateRange = null;
+  //             });
+  //             Navigator.pop(context);
+  //           },
+  //           child: const Text("Clear Filters"),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+  // void _openAdvancedFilterDialog() {
+  //   showDialog(
+  //     context: context,
+  //     builder: (_) {
+  //       String? tempCategory = _selectedCategory;
+  //       DateTimeRange? tempDateRange = _selectedDateRange;
+
+  //       return CommonDialog(
+  //         title: 'Advanced Filters',
+  //         body: StatefulBuilder(
+  //           builder: (context, setDialogState) {
+  //             return Column(
+  //               mainAxisSize: MainAxisSize.min,
+  //               children: [
+  //                 /// Category Dropdown
+  //                 DropdownButtonFormField<String>(
+  //                   initialValue: tempCategory,
+  //                   decoration: const InputDecoration(
+  //                     labelText: 'Expense Category',
+  //                     border: OutlineInputBorder(),
+  //                   ),
+  //                   items: _buildCategoryDropdownItems(),
+  //                   onChanged: (value) {
+  //                     setDialogState(() {
+  //                       tempCategory = value;
+  //                     });
+  //                   },
+  //                 ),
+
+  //                 const SizedBox(height: 20),
+
+  //                 /// Date Range Button
+  //                 ElevatedButton(
+  //                   onPressed: () async {
+  //                     final range = await showDateRangePicker(
+  //                       context: context,
+  //                       firstDate: DateTime(2020),
+  //                       lastDate: DateTime.now(),
+  //                     );
+
+  //                     if (range != null) {
+  //                       setDialogState(() {
+  //                         tempDateRange = range;
+  //                       });
+  //                     }
+  //                   },
+  //                   child: const Text("Select Date Range"),
+  //                 ),
+
+  //                 if (tempDateRange != null)
+  //                   Padding(
+  //                     padding: const EdgeInsets.only(top: 10),
+  //                     child: Text(
+  //                       "${DateFormat('dd MMM yyyy').format(tempDateRange!.start)} - "
+  //                       "${DateFormat('dd MMM yyyy').format(tempDateRange!.end)}",
+  //                     ),
+  //                   ),
+  //               ],
+  //             );
+  //           },
+  //         ),
+  //         primaryActionText: 'Apply',
+  //         cancelText: 'Cancel',
+  //         onPrimaryAction: () {
+  //           setState(() {
+  //             _selectedCategory = tempCategory;
+  //             _selectedDateRange = tempDateRange;
+  //           });
+  //           Navigator.pop(context);
+  //         },
+  //       );
+  //     },
+  //   );
+  // }
+
+  // void _enterSelectionMode(String id) {
+  //   setState(() {
+  //     _isSelectionMode = true;
+  //     _selectedExpenseIds.add(id);
+  //   });
+  // }
 
   @override
   void dispose() {
@@ -940,31 +996,18 @@ class HomePageState extends State<HomePage> {
     Color iconColor = customTheme!.toggleButtonTextColor;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: appBar: CommonAppBar(
-        title: 'MacTrack',
+      extendBody: true,
+      appBar: CommonAppBar(
+        title: _isSearchMode ? "" : "MacTrack",
         isSelectionMode: _isSelectionMode,
         selectedCount: _selectedExpenseIds.length,
-        totalFilteredCount: _currentFilteredCount,
-        onSearchPressed: () {
+        totalCount: _currentFilteredCount,
+        onExitSelection: () {
           setState(() {
-            _isSearchMode = !_isSearchMode;
+            _isSelectionMode = false;
+            _selectedExpenseIds.clear();
           });
         },
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.tune),
-            onPressed: () async {
-              await showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                builder: (_) => _buildAdvancedFilterSheet(),
-              );
-            },
-          ),
-        ],
-        onExitSelection: _exitSelectionMode,
-      
         onToggleSelectAll: () {
           setState(() {
             if (_selectedExpenseIds.length == _currentFilteredCount) {
@@ -974,53 +1017,11 @@ class HomePageState extends State<HomePage> {
             }
           });
         },
-      
-        onDeleteSelected: () {
-          showAlertDialog(
-            context,
-            Theme.of(context),
-            'Delete Expenses',
-            'Delete selected expenses?',
-            'Delete',
-            _deleteSelectedExpenses,
-          );
-        },
-      ),
-      floatingActionButton: _isSelectionMode
-      ? null
-      : FloatingActionButton(
-        onPressed: () async {
-          await openFullScreenModal(context, null, null);
-        },
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.0),
-        ),
-        backgroundColor: AppColors.secondaryGreen,
-        child: const Icon(
-          FontAwesomeIcons.plus,
-          color: AppColors.backgroundLight,
-        ),
-      ),
-      bottomNavigationBar: FloatingBottomNav(
-        currentIndex: _bottomIndex,
-        onTap: (index) {
-          if (index == _bottomIndex) return;
-      
-          if (index == 1) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const Insight()),
-            );
-          }
-      
-          setState(() {
-            _bottomIndex = index;
-          });
-        },
+        onDeleteSelected: _deleteSelectedExpenses,
       ),
       body: Container(
           decoration: AppTheme.getBackgroundDecoration(themeMode),
-          padding: const EdgeInsets.only(top: kToolbarHeight + 50),
+          padding: const EdgeInsets.only(top: 0),
           child: Column(children: [
             Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -1162,28 +1163,7 @@ class HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 10),
 
-
-                  // Search UI
-                  if (_isSearchMode)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Search expense...',
-                          prefixIcon: const Icon(Icons.search),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onChanged: (value) {
-                          setState(() {
-                            _searchQuery = value.toLowerCase();
-                          });
-                        },
-                      ),
-                    ),
-
-                  // FIlter Container
+                  // Filter Container
                   SlideInAnimation(
                     delay: const Duration(milliseconds: 100),
                     startPosition: -0.5,
@@ -1296,7 +1276,7 @@ class HomePageState extends State<HomePage> {
                     // FILTER LOGIC (THIS FIXES EVERYTHING)
                     final filteredExpenses = expenseData.entries.where((entry) {
                       final data = entry.value;
-                      
+
                       // 1. Bank filter
                       if (data[FirebaseConstants.bankIdField] !=
                           selectedBankId) {
@@ -1329,28 +1309,29 @@ class HomePageState extends State<HomePage> {
                               .contains(_searchQuery))) {
                         return false;
                       }
-                      
+
                       // 5. Category filter
-                      if (_selectedCategory != null &&
-                          data[FirebaseConstants.expenseCategoryField] != _selectedCategory) {
+                      if (_selectedCategories.isNotEmpty &&
+                        !_selectedCategories.contains(
+                            data[FirebaseConstants.expenseCategoryField])) 
+                      {
                         return false;
                       }
-                      
+
                       // 6. Date range filter
                       if (_selectedDateRange != null) {
-                        final ts = data[FirebaseConstants.timestampField] as Timestamp;
+                        final ts =
+                            data[FirebaseConstants.timestampField] as Timestamp;
                         final date = ts.toDate();
-                      
+
                         if (date.isBefore(_selectedDateRange!.start) ||
                             date.isAfter(_selectedDateRange!.end)) {
                           return false;
                         }
+                      }
 
                       return true;
                     }).toList();
-
-                    List<String> _currentFilteredIds = [];
-                    int _currentFilteredCount = 0;
 
                     // 4. Sort newest first
                     filteredExpenses.sort((a, b) {
@@ -1386,138 +1367,164 @@ class HomePageState extends State<HomePage> {
                                 categoryInfo?[FirebaseConstants.imageField] ??
                                     'assets/images/other-expenses.png';
 
-                            return _isSelectionMode
-                              ? _buildSelectableTile(entry, expense, categoryImage)
-                              : Slidable(
-                              key: ValueKey(entry.key),
-                              endActionPane: ActionPane(
-                                motion: const DrawerMotion(),
-                                extentRatio: 0.4,
-                                children: [
-                                  SlidableAction(
-                                    onPressed: (_) {
-                                      final ts = expense?[FirebaseConstants
-                                          .timestampField] as Timestamp?;
-                                      if (ts != null) {
-                                        final d = ts.toDate();
-                                        final now = DateTime.now();
-                                        final isOldMonth =
-                                            d.month != now.month ||
-                                                d.year != now.year;
-
-                                        if (isOldMonth) {
-                                          showToast(
-                                              "Editing previous month is not allowed.");
-                                          return;
-                                        }
-
-                                        openFullScreenModal(
-                                            context, entry.key, expense);
-                                      }
+                            return GestureDetector(
+                                    onLongPress: () => {
+                                      setState(() {
+                                        _isSelectionMode = true;
+                                        _selectedExpenseIds.add(entry.key);
+                                      })
                                     },
-                                    backgroundColor: AppColors.secondaryGreen,
-                                    foregroundColor: Colors.white,
-                                    icon: FontAwesomeIcons.pencil,
-                                    label: 'Edit',
-                                  ),
-                                  SlidableAction(
-                                    onPressed: (_) {
-                                      showAlertDialog(
-                                        context,
-                                        Theme.of(context),
-                                        'Delete Expense',
-                                        'Are you sure you want to delete this expense?',
-                                        'Delete',
-                                        () => _onDeleteExpense(entry.key),
-                                      );
-                                    },
-                                    backgroundColor: AppColors.danger,
-                                    foregroundColor: Colors.white,
-                                    icon: FontAwesomeIcons.trash,
-                                    label: 'Delete',
-                                  ),
-                                  SlidableAction(
-                                    onPressed: (_) {
-                                      showDialog(
-                                        context: context,
-                                        builder: (_) => SetReminderDialog(
-                                          documentId: entry.key,
-                                          reminderName: expense[
-                                              FirebaseConstants
-                                                  .expenseCategoryField],
-                                        ),
-                                      );
-                                    },
-                                    backgroundColor: AppColors.amber,
-                                    foregroundColor: Colors.white,
-                                    icon: FontAwesomeIcons.clock,
-                                    label: 'Reminder',
-                                  ),
-                                ],
-                              ),
-                              child: GestureDetector(
-                                  onTap: () async {
-                                    await showDialog(
-                                      context: context,
-                                      builder: (BuildContext context) =>
-                                          ExpenseDetailsDialog(
-                                        email: userEmail,
-                                        selectedExpenseId: entry.key,
-                                      ),
-                                    );
-                                  },
-                                  child: ListCard(
-                                    image: categoryImage,
-                                    title: expense[
-                                            FirebaseConstants.expenseField] ??
-                                        '',
-                                    subTitle: Row(
+                                    child: Slidable(
+                                    key: ValueKey(entry.key),
+                                    endActionPane: ActionPane(
+                                      motion: const DrawerMotion(),
+                                      extentRatio: 0.4,
                                       children: [
-                                        Text(
-                                          expense[FirebaseConstants
-                                                  .transactionTypeField] ??
-                                              '',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodyLarge,
+                                        SlidableAction(
+                                          onPressed: (_) {
+                                            final ts = expense?[
+                                                    FirebaseConstants
+                                                        .timestampField]
+                                                as Timestamp?;
+                                            if (ts != null) {
+                                              final d = ts.toDate();
+                                              final now = DateTime.now();
+                                              final isOldMonth =
+                                                  d.month != now.month ||
+                                                      d.year != now.year;
+
+                                              if (isOldMonth) {
+                                                showToast(
+                                                    "Editing previous month is not allowed.");
+                                                return;
+                                              }
+
+                                              openFullScreenModal(
+                                                  context, entry.key, expense);
+                                            }
+                                          },
+                                          backgroundColor:
+                                              AppColors.secondaryGreen,
+                                          foregroundColor: AppColors.backgroundLight,
+                                          icon: FontAwesomeIcons.pencil,
+                                          label: 'Edit',
                                         ),
-                                        expense[FirebaseConstants
-                                                    .transactionTypeField] ==
-                                                AppConstants
-                                                    .transactionTypeDeposit
-                                            ? const Icon(
-                                                FeatherIcons.arrowDownLeft,
-                                                color:
-                                                    AppColors.filterButtonGreen)
-                                            : expense[FirebaseConstants
-                                                        .transactionTypeField] ==
-                                                    AppConstants
-                                                        .transactionTypeWithdraw
-                                                ? const Icon(
-                                                    FeatherIcons.arrowUpRight,
-                                                    color: AppColors.danger)
-                                                : const Icon(
-                                                    FeatherIcons.arrowUp,
-                                                    color: AppColors.danger)
+                                        SlidableAction(
+                                          onPressed: (_) {
+                                            showAlertDialog(
+                                              context,
+                                              Theme.of(context),
+                                              'Delete Expense',
+                                              'Are you sure you want to delete this expense?',
+                                              'Delete',
+                                              () => _onDeleteExpense(entry.key),
+                                            );
+                                          },
+                                          backgroundColor: AppColors.danger,
+                                          foregroundColor: AppColors.backgroundLight,
+                                          icon: FontAwesomeIcons.trash,
+                                          label: 'Delete',
+                                        ),
+                                        SlidableAction(
+                                          onPressed: (_) {
+                                            showDialog(
+                                              context: context,
+                                              builder: (_) => SetReminderDialog(
+                                                documentId: entry.key,
+                                                reminderName: expense[
+                                                    FirebaseConstants
+                                                        .expenseCategoryField],
+                                              ),
+                                            );
+                                          },
+                                          backgroundColor: AppColors.amber,
+                                          foregroundColor: AppColors.backgroundLight,
+                                          icon: FontAwesomeIcons.clock,
+                                          label: 'Reminder',
+                                        ),
                                       ],
                                     ),
-                                    suffix: '₹${formatCompactIndian(
-                                      (expense[FirebaseConstants.amountField] ??
-                                              0)
-                                          .toDouble(),
-                                    )}',
-                                    footer: Text(
-                                      formatTimestamp(expense[
-                                          FirebaseConstants.timestampField]),
-                                      style: TextStyle(
-                                        fontSize: Theme.of(context)
-                                            .textTheme
-                                            .labelSmall
-                                            ?.fontSize,
-                                      ),
-                                    ),
-                                  )),
-                            );
+                                    child: GestureDetector(
+                                        onTap: () async {
+                                          await showDialog(
+                                            context: context,
+                                            builder: (BuildContext context) =>
+                                                ExpenseDetailsDialog(
+                                              email: userEmail,
+                                              selectedExpenseId: entry.key,
+                                            ),
+                                          );
+                                        },
+                                        child: ListCard(
+                                          image: _isSelectionMode 
+                                          ? Checkbox(
+                                            value:  _selectedExpenseIds.contains(entry.key),
+                                            activeColor: AppColors.secondaryGreen,
+                                            onChanged: (_) => _toggleSelection(entry.key),
+                                          )
+                                          : categoryImage.startsWith('http')
+                                            ? Image.network(categoryImage)
+                                            : Image.asset(categoryImage),
+                                          title: expense[FirebaseConstants
+                                                  .expenseField] ??
+                                              '',
+                                          subTitle: Row(
+                                            children: [
+                                              Text(
+                                                expense[FirebaseConstants
+                                                        .transactionTypeField] ??
+                                                    '',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyLarge,
+                                              ),
+                                              expense[FirebaseConstants
+                                                          .transactionTypeField] ==
+                                                      AppConstants
+                                                          .transactionTypeDeposit
+                                                  ? const Icon(
+                                                      FeatherIcons
+                                                          .arrowDownLeft,
+                                                      color: AppColors
+                                                          .filterButtonGreen)
+                                                  : expense[FirebaseConstants
+                                                              .transactionTypeField] ==
+                                                          AppConstants
+                                                              .transactionTypeWithdraw
+                                                      ? const Icon(
+                                                          FeatherIcons
+                                                              .arrowUpRight,
+                                                          color:
+                                                              AppColors.danger)
+                                                      : const Icon(
+                                                          FeatherIcons.arrowUp,
+                                                          color:
+                                                              AppColors.danger)
+                                            ],
+                                          ),
+                                          suffix: Text(
+                                              '₹${formatCompactIndian(
+                                                (expense[FirebaseConstants
+                                                            .amountField] ??
+                                                        0)
+                                                    .toDouble(),
+                                              )}',
+                                              style: theme
+                                                  .textTheme.headlineLarge),
+                                          footer: Text(
+                                            formatTimestamp(expense[
+                                                FirebaseConstants
+                                                    .timestampField]),
+                                            style: TextStyle(
+                                              fontSize: Theme.of(context)
+                                                  .textTheme
+                                                  .labelSmall
+                                                  ?.fontSize,
+                                              color: theme.textTheme.bodyLarge?.color?.withValues(alpha: 0.8),
+                                            ),
+                                          ),
+                                        )),
+                                  ));
                           }).toList(),
                         );
                       },

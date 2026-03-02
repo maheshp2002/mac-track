@@ -269,11 +269,12 @@ class ExpenseDetailsDialogState extends State<ExpenseDetailsDialog> {
                           ?.copyWith(color: AppColors.white70),
                     ),
                   ]),
-                  const Icon(
-                    FeatherIcons.arrowUpRight,
-                    color: AppColors.primaryGreen,
-                    size: 20,
-                  ),
+                  if(contactName.isNotEmpty)
+                    const Icon(
+                      FeatherIcons.arrowUpRight,
+                      color: AppColors.primaryGreen,
+                      size: 20,
+                    ),
                 ])),
         const Spacer(),
         const SizedBox(height: 8),

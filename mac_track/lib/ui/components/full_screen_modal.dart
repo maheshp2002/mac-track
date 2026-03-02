@@ -784,8 +784,6 @@ class FullScreenModalState extends State<FullScreenModal> {
                                 ),
                                 const SizedBox(height: 30),
                                 TextFormField(
-                                  enabled: _selectedExpenseCategory ==
-                                      AppConstants.otherCategory,
                                   controller: _expenseController,
                                   maxLength: 15,
                                   focusNode: _expenseFocusNode,

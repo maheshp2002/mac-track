@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'homepage.dart';
+import 'package:mac_track/ui/components/main_screen.dart';
 import 'sign.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -27,7 +27,7 @@ class SplashScreenState extends State<SplashScreen> {
       if (user != null) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
+          MaterialPageRoute(builder: (context) => const MainScreen()),
         );
       } else {
         Navigator.pushReplacement(

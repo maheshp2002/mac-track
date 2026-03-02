@@ -1,13 +1,11 @@
 import 'dart:ui';
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/material.dart';
+import 'package:mac_track/ui/components/main_screen.dart';
 import 'package:mac_track/ui/components/toast.dart';
 import 'package:mac_track/ui/theme.dart';
 import 'package:rive/rive.dart' hide Image;
-
-import 'homepage.dart';
 
 class SignInPage extends StatelessWidget {
   final GoogleSignIn _googleSignIn = GoogleSignIn();
@@ -33,7 +31,7 @@ class SignInPage extends StatelessWidget {
         // Check if the widget is still in the widget tree
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
+          MaterialPageRoute(builder: (context) => const MainScreen()),
         );
       }
     } catch (e) {

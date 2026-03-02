@@ -1,11 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:mac_track/ui/components/common_app_bar.dart';
 import 'package:mac_track/ui/components/curved_toggle_button.dart';
 import 'package:provider/provider.dart';
-import 'components/common_app_bar.dart';
 import 'components/graph.dart';
-import 'components/floating_bottom_nav.dart';
 import 'components/theme_manager.dart';
 import 'theme.dart';
 import '../../config/constants.dart';
@@ -121,11 +119,11 @@ class InsightState extends State<Insight> {
   }
 
   void _updateSalaryStream([String? selectedValue]) async {
-    final email = FirebaseAuth.instance.currentUser!.email!;
+    // final email = FirebaseAuth.instance.currentUser!.email!;
 
-    final expenseDataRaw = await firebaseService
-        .streamGetAllData(email, FirebaseConstants.expenseCollection)
-        .first;
+    // final expenseDataRaw = await firebaseService
+    //     .streamGetAllData(email, FirebaseConstants.expenseCollection)
+    //     .first;
 
     // Add ALL option
     salaryData.add({
@@ -275,9 +273,8 @@ class InsightState extends State<Insight> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: const CommonAppBar(
-        title: 'Insight',
+        title: 'Insight',  totalCount: 0,
       ),
-      drawer: const FloatingBottomNav(),
       body: Container(
           decoration: AppTheme.getBackgroundDecoration(themeMode),
           padding: const EdgeInsets.only(top: kToolbarHeight + 50),

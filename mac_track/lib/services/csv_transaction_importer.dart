@@ -2,8 +2,8 @@ import 'dart:io';
 import 'package:csv/csv.dart';
 import 'package:intl/intl.dart';
 import 'package:mac_track/config/constants.dart';
+import 'package:mac_track/utils/transaction_field_dictionary.dart';
 import 'package:mac_track/utils/transaction_semantic_classifier.dart';
-import 'transaction_field_dictionary.dart';
 
 class CsvTransactionImporter {
   Future<List<Map<String, dynamic>>> importCsv({

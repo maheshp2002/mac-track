@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 class ListCard extends StatelessWidget {
-  final String image;
+  final Widget image;
   final String title;
   final Widget subTitle;
-  final String suffix;
+  final Widget suffix;
   final Widget footer;
 
   const ListCard({
@@ -23,9 +23,7 @@ class ListCard extends StatelessWidget {
     return ListTile(
       minTileHeight: 80,
       leading: Container(
-        child: image.startsWith('http')
-            ? Image.network(image)
-            : Image.asset(image),
+        child: image,
       ),
       title: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -41,10 +39,7 @@ class ListCard extends StatelessWidget {
             ),
             subTitle
           ]),
-          Text(
-            suffix,
-            style: theme.textTheme.headlineLarge,
-          ),
+          suffix
         ],
       ),
       subtitle: footer,
